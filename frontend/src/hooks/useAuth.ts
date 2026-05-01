@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react'
-import { apiClient, AuthResponse } from '../lib/api'
+import { apiClient } from '../lib/api'
 
 interface AuthUser {
   id: string
@@ -54,6 +54,28 @@ export function useAuth() {
     }
   }
 
+  const googleLogin = async (googleToken: string) => {
+    console.log('[useAuth] googleLogin called')
+    setIsLoading(true)
+    setError(null)
+    try {
+      console.log('[useAuth] Calling apiClient.googleLogin...')
+      const response = await apiClient.googleLogin(googleToken)
+      console.log('[useAuth] Response:', response)
+      setUser(response.user)
+      localStorage.setItem('authUser', JSON.stringify(response.user))
+      console.log('[useAuth] User set, auth complete')
+      return response.user
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Google login failed'
+      console.error('[useAuth] Error:', message, err)
+      setError(message)
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const logout = () => {
     setUser(null)
     localStorage.removeItem('authUser')
@@ -66,6 +88,7 @@ export function useAuth() {
     error,
     register,
     login,
+    googleLogin,
     logout,
     isAuthenticated: !!user,
   }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 import { useChat } from './hooks/useChat'
 import { useAuth } from './hooks/useAuth'
 import { ThreadSidebar } from './components/chat/ThreadSidebar'
@@ -9,20 +10,25 @@ import { RegisterPage } from './pages/RegisterPage'
 import './App.css'
 
 const queryClient = new QueryClient()
+const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) || ''
 
 type Page = 'chat' | 'login' | 'register'
 
 function ChatApp() {
-  const { activeThreadId, selectThread, createThread, isCreating } = useChat()
-  const { user, logout, register: authRegister, login: authLogin } = useAuth()
+  const { user, logout, register: authRegister, login: authLogin, googleLogin: authGoogleLogin } = useAuth()
+  const { activeThreadId, selectThread, createThread, isCreating, clearThreads } = useChat()
   const [currentPage, setCurrentPage] = useState<Page>('login')
   
   // Sync page based on auth state
   useEffect(() => {
+    console.log('[App] User state changed:', user)
     if (user) {
+      console.log('[App] Setting page to chat')
       setCurrentPage('chat')
     } else {
+      console.log('[App] Setting page to login, clearing threads')
       setCurrentPage('login')
+      clearThreads() // Clear threads when user logs out
     }
   }, [user])
 
@@ -48,10 +54,22 @@ function ChatApp() {
     }
   }
 
+  // Handle Google login success
+  const handleGoogleLoginSuccess = async (googleToken: string) => {
+    try {
+      await authGoogleLogin(googleToken)
+      // User state is automatically updated by useAuth hook
+      // Navigation happens via useEffect above
+    } catch (err) {
+      console.error('Google login failed:', err)
+    }
+  }
+
   if (!user) {
     return currentPage === 'login' ? (
       <LoginPage
         onLoginSuccess={handleLoginSuccess}
+        onLoginSuccessGoogle={handleGoogleLoginSuccess}
         onNavigateToRegister={() => setCurrentPage('register')}
       />
     ) : (
@@ -114,10 +132,25 @@ function ChatApp() {
   )
 }
 
-export default function App() {
+// Memoize to prevent unnecessary re-renders
+const AppWithAuth = () => {
+  if (!GOOGLE_CLIENT_ID) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ChatApp />
+      </QueryClientProvider>
+    )
+  }
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <ChatApp />
-    </QueryClientProvider>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <QueryClientProvider client={queryClient}>
+        <ChatApp />
+      </QueryClientProvider>
+    </GoogleOAuthProvider>
   )
+}
+
+export default function App() {
+  return <AppWithAuth />
 }

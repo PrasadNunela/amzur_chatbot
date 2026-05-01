@@ -3,7 +3,9 @@
  * All API calls must go through this module — never call fetch or axios directly in components.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+import { Thread } from '../types/chat'
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000/api'
 
 interface ApiError {
   error: string
@@ -88,10 +90,28 @@ class ApiClient {
     })
   }
 
+  async googleLogin(googleToken: string): Promise<AuthResponse> {
+    console.log('[API] Calling /auth/google/token with token...')
+    try {
+      const result = await this.post<AuthResponse>('/auth/google/token', {
+        token: googleToken,
+      })
+      console.log('[API] Google login successful:', result)
+      return result
+    } catch (err) {
+      console.error('[API] Google login failed:', err)
+      throw err
+    }
+  }
+
   async updateThreadTitle(threadId: string, title: string): Promise<Thread> {
     return this.put<Thread>(`/chat/threads/${threadId}`, {
       title,
     })
+  }
+
+  async deleteThread(threadId: string): Promise<{ message: string }> {
+    return this.delete<{ message: string }>(`/chat/threads/${threadId}`)
   }
 }
 

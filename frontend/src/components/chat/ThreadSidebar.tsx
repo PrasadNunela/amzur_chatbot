@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../lib/api'
 import { Thread } from '../../types/chat'
 
@@ -20,6 +20,7 @@ export function ThreadSidebar({
   onCreateThread,
   isCreating = false,
 }: ThreadSidebarProps) {
+  const queryClient = useQueryClient()
   const [threads, setThreads] = useState<Thread[]>([])
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
@@ -41,9 +42,11 @@ export function ThreadSidebar({
   const updateTitleMutation = useMutation({
     mutationFn: ({ threadId, title }: { threadId: string; title: string }) =>
       apiClient.updateThreadTitle(threadId, title),
-    onSuccess: () => {
+    onSuccess: (data) => {
       setEditingThreadId(null)
       refetchThreads()
+      // Also invalidate the thread detail query so main area gets updated
+      queryClient.invalidateQueries({ queryKey: ['thread', data.id] })
     },
     onError: () => {
       alert('Failed to update title')

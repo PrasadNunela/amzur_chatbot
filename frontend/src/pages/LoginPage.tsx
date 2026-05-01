@@ -3,13 +3,15 @@
  */
 
 import { useState } from 'react'
+import { GoogleLogin } from '@react-oauth/google'
 
 interface LoginPageProps {
   onLoginSuccess: (email: string, password: string) => Promise<void>
+  onLoginSuccessGoogle: (googleToken: string) => Promise<void>
   onNavigateToRegister: () => void
 }
 
-export function LoginPage({ onLoginSuccess, onNavigateToRegister }: LoginPageProps) {
+export function LoginPage({ onLoginSuccess, onLoginSuccessGoogle, onNavigateToRegister }: LoginPageProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -31,6 +33,34 @@ export function LoginPage({ onLoginSuccess, onNavigateToRegister }: LoginPagePro
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    console.log('Google credential received:', credentialResponse)
+    setError(null)
+    setIsLoading(true)
+    try {
+      const token = credentialResponse.credential
+      console.log('Token extracted:', token ? 'token present' : 'NO TOKEN')
+      if (!token) {
+        throw new Error('No credential received from Google')
+      }
+      console.log('Calling onLoginSuccessGoogle with token...')
+      await onLoginSuccessGoogle(token)
+      console.log('Google login successful!')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Google login failed'
+      console.error('Google login error:', err)
+      console.error('Error message:', message)
+      setError(message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleGoogleError = () => {
+    console.error('Google login error occurred')
+    setError('Google login failed - please check your browser console and ensure Google OAuth is properly configured')
   }
 
   return (
@@ -90,6 +120,21 @@ export function LoginPage({ onLoginSuccess, onNavigateToRegister }: LoginPagePro
             {isLoading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        {/* Google OAuth Divider */}
+        <div className="mt-6 flex items-center">
+          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+          <span className="px-3 text-sm text-gray-600 dark:text-gray-400">or</span>
+          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+        </div>
+
+        {/* Google OAuth Button */}
+        <div className="mt-6 flex justify-center">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleError}
+          />
+        </div>
 
         <p className="text-center text-gray-600 dark:text-gray-400 mt-6">
           Don't have an account?{' '}

@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../../lib/api'
 import { Message, ThreadDetail, ChatResponseSchema } from '../../types/chat'
 import { ChatInput } from './ChatInput'
@@ -14,6 +14,7 @@ interface ChatThreadProps {
 }
 
 export function ChatThread({ threadId }: ChatThreadProps) {
+  const queryClient = useQueryClient()
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
@@ -57,6 +58,8 @@ export function ChatThread({ threadId }: ChatThreadProps) {
     onSuccess: () => {
       setIsEditingTitle(false)
       refetchThread()
+      // Also invalidate the threads list in sidebar so it reflects the new title
+      queryClient.invalidateQueries({ queryKey: ['threads'] })
     },
     onError: () => {
       alert('Failed to update title. Please try again.')

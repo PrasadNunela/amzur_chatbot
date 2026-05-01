@@ -78,3 +78,47 @@ class AuthService:
         stmt = select(User).where(User.email == email)
         result = await db.execute(stmt)
         return result.scalars().first()
+
+    @staticmethod
+    async def get_user_by_google_id(db: AsyncSession, google_id: str) -> User | None:
+        """Get a user by Google ID."""
+        stmt = select(User).where(User.google_id == google_id)
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    @staticmethod
+    async def register_google_user(db: AsyncSession, google_id: str, email: str, full_name: str) -> User:
+        """Register or retrieve a user authenticated via Google."""
+        # Check if user already exists by Google ID
+        stmt = select(User).where(User.google_id == google_id)
+        result = await db.execute(stmt)
+        existing_user = result.scalars().first()
+        
+        if existing_user:
+            return existing_user
+
+        # Check if email already exists (account linking)
+        stmt = select(User).where(User.email == email)
+        result = await db.execute(stmt)
+        email_user = result.scalars().first()
+        
+        if email_user:
+            # Link Google account to existing user
+            email_user.google_id = google_id
+            db.add(email_user)
+            await db.commit()
+            await db.refresh(email_user)
+            return email_user
+
+        # Create new Google user
+        new_user = User(
+            email=email,
+            google_id=google_id,
+            full_name=full_name,
+        )
+        
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+        
+        return new_user

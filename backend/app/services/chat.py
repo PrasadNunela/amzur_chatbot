@@ -14,12 +14,28 @@ class ChatService:
     """Service for managing chat threads and messages."""
 
     @staticmethod
+    def _generate_thread_title(message_content: str, max_length: int = 50) -> str:
+        """Generate a thread title from the first message."""
+        # Strip whitespace and take first few words
+        cleaned = message_content.strip()
+        if len(cleaned) > max_length:
+            # Truncate at word boundary
+            truncated = cleaned[:max_length].rsplit(' ', 1)[0]
+            return truncated + "..."
+        return cleaned
+
+    @staticmethod
     async def create_thread(
         db: AsyncSession,
         user_id: UUID,
         title: str | None = None,
     ) -> Thread:
         """Create a new conversation thread."""
+        # Generate a default title if none provided
+        if not title:
+            now = datetime.utcnow()
+            title = now.strftime("Chat - %b %d, %I:%M %p")
+        
         thread = Thread(user_id=user_id, title=title)
         db.add(thread)
         await db.commit()
@@ -82,11 +98,20 @@ class ChatService:
         message = Message(thread_id=thread_id, role=role, content=content)
         db.add(message)
         
-        # Update thread's updated_at timestamp
+        # Update thread's updated_at timestamp and auto-generate title from first user message
         stmt = select(Thread).where(Thread.id == thread_id)
         result = await db.execute(stmt)
         thread = result.scalars().first()
         if thread:
+            # Count existing messages to check if this is the first one
+            msg_stmt = select(Message).where(Message.thread_id == thread_id)
+            msg_result = await db.execute(msg_stmt)
+            existing_messages = msg_result.scalars().all()
+            
+            # If this is the first user message and title looks like default format, update it
+            if role == "user" and len(existing_messages) == 0:
+                thread.title = ChatService._generate_thread_title(content)
+            
             thread.updated_at = datetime.utcnow()
         
         await db.commit()

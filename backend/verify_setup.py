@@ -173,8 +173,7 @@ def check_googleLiteLLM API key is configured and valid"""
         return True
             
     except Exception as e:
-        print(f"  ❌ Error checking LiteLLM
-        print(f"  ❌ Error checking Google API: {str(e)}")
+        print(f"  ❌ Error checking LiteLLM: {str(e)}")
         return False
 
 
@@ -199,7 +198,7 @@ def main():
         try:
             result = check_func()
             results.append((name, result))
-        exLiteLLMn as e:
+        except Exception as e:
             print(f"  ❌ Error during check: {e}")
             results.append((name, False))
     
