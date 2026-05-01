@@ -1,0 +1,7 @@
+# Root-level .gitignore for frontend
+node_modules/
+dist/
+.env
+.env.local
+.DS_Store
+*.log
