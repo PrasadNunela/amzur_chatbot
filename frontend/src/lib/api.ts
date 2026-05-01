@@ -10,6 +10,15 @@ interface ApiError {
   message: string
 }
 
+export interface AuthResponse {
+  user: {
+    id: string
+    email: string
+    full_name: string | null
+  }
+  message: string
+}
+
 class ApiClient {
   private baseUrl: string
 
@@ -61,6 +70,28 @@ class ApiClient {
 
   async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE' })
+  }
+
+  // Auth methods
+  async register(email: string, password: string, fullName?: string): Promise<AuthResponse> {
+    return this.post<AuthResponse>('/auth/register', {
+      email,
+      password,
+      full_name: fullName,
+    })
+  }
+
+  async login(email: string, password: string): Promise<AuthResponse> {
+    return this.post<AuthResponse>('/auth/login', {
+      email,
+      password,
+    })
+  }
+
+  async updateThreadTitle(threadId: string, title: string): Promise<Thread> {
+    return this.put<Thread>(`/chat/threads/${threadId}`, {
+      title,
+    })
   }
 }
 

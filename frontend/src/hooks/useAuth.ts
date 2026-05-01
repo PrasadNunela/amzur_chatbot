@@ -1,0 +1,72 @@
+/**
+ * Custom hook for managing authentication state.
+ */
+
+import { useState } from 'react'
+import { apiClient, AuthResponse } from '../lib/api'
+
+interface AuthUser {
+  id: string
+  email: string
+  full_name: string | null
+}
+
+export function useAuth() {
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    // Try to restore user from localStorage
+    const stored = localStorage.getItem('authUser')
+    return stored ? JSON.parse(stored) : null
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const register = async (email: string, password: string, fullName?: string) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await apiClient.register(email, password, fullName)
+      setUser(response.user)
+      localStorage.setItem('authUser', JSON.stringify(response.user))
+      return response.user
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Registration failed'
+      setError(message)
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const login = async (email: string, password: string) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await apiClient.login(email, password)
+      setUser(response.user)
+      localStorage.setItem('authUser', JSON.stringify(response.user))
+      return response.user
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Login failed'
+      setError(message)
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const logout = () => {
+    setUser(null)
+    localStorage.removeItem('authUser')
+    // Optionally call a logout endpoint to clear the server-side token
+  }
+
+  return {
+    user,
+    isLoading,
+    error,
+    register,
+    login,
+    logout,
+    isAuthenticated: !!user,
+  }
+}

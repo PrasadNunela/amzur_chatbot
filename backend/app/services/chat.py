@@ -38,6 +38,29 @@ class ChatService:
         return result.scalars().first()
 
     @staticmethod
+    async def update_thread(
+        db: AsyncSession,
+        thread_id: UUID,
+        user_id: UUID,
+        title: str | None = None,
+    ) -> Thread | None:
+        """Update a thread (ensure user owns it)."""
+        stmt = select(Thread).where(Thread.id == thread_id, Thread.user_id == user_id)
+        result = await db.execute(stmt)
+        thread = result.scalars().first()
+        
+        if not thread:
+            return None
+        
+        if title is not None:
+            thread.title = title
+        
+        thread.updated_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(thread)
+        return thread
+
+    @staticmethod
     async def list_threads(db: AsyncSession, user_id: UUID) -> list[Thread]:
         """List all threads for a user."""
         stmt = (

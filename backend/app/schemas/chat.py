@@ -30,6 +30,12 @@ class ThreadCreateSchema(ThreadBaseSchema):
     pass
 
 
+class ThreadUpdateSchema(BaseModel):
+    """Update thread request."""
+
+    title: str = Field(..., min_length=1, max_length=255)
+
+
 class ThreadSchema(ThreadBaseSchema):
     """Thread response schema."""
 

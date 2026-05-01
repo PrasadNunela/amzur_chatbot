@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { apiClient } from '../../lib/api'
 import { Thread } from '../../types/chat'
 
@@ -21,9 +21,11 @@ export function ThreadSidebar({
   isCreating = false,
 }: ThreadSidebarProps) {
   const [threads, setThreads] = useState<Thread[]>([])
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
 
   // Fetch threads
-  const { data: fetchedThreads } = useQuery({
+  const { data: fetchedThreads, refetch: refetchThreads } = useQuery({
     queryKey: ['threads'],
     queryFn: () => apiClient.get<Thread[]>('/chat/threads'),
     refetchInterval: false,
@@ -34,6 +36,38 @@ export function ThreadSidebar({
       setThreads(fetchedThreads)
     }
   }, [fetchedThreads])
+
+  // Update title mutation
+  const updateTitleMutation = useMutation({
+    mutationFn: ({ threadId, title }: { threadId: string; title: string }) =>
+      apiClient.updateThreadTitle(threadId, title),
+    onSuccess: () => {
+      setEditingThreadId(null)
+      refetchThreads()
+    },
+    onError: () => {
+      alert('Failed to update title')
+      setEditingThreadId(null)
+    },
+  })
+
+  const handleStartEdit = (thread: Thread) => {
+    setEditingThreadId(thread.id)
+    setEditTitle(thread.title || '')
+  }
+
+  const handleSaveTitle = (threadId: string) => {
+    const trimmedTitle = editTitle.trim()
+    if (trimmedTitle) {
+      updateTitleMutation.mutate({ threadId, title: trimmedTitle })
+    } else {
+      setEditingThreadId(null)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingThreadId(null)
+  }
 
   return (
     <div className="w-64 bg-gray-50 dark:bg-gray-900 border-r dark:border-gray-700 flex flex-col">
@@ -57,18 +91,54 @@ export function ThreadSidebar({
         ) : (
           <div className="space-y-1 p-2">
             {threads.map((thread) => (
-              <button
-                key={thread.id}
-                onClick={() => onSelectThread(thread.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate ${
-                  activeThreadId === thread.id
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800'
-                }`}
-                title={thread.title || 'Untitled Conversation'}
-              >
-                {thread.title || 'Untitled Conversation'}
-              </button>
+              <div key={thread.id} className="group relative">
+                {editingThreadId === thread.id ? (
+                  <div className="flex gap-1 px-2 py-1">
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="flex-1 px-2 py-1 text-sm rounded bg-white dark:bg-gray-800 border border-blue-500 text-gray-900 dark:text-white focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleSaveTitle(thread.id)}
+                      disabled={updateTitleMutation.isPending}
+                      className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={updateTitleMutation.isPending}
+                      className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500 disabled:opacity-50"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onSelectThread(thread.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate ${
+                      activeThreadId === thread.id
+                        ? 'bg-blue-500 text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800'
+                    }`}
+                    title={thread.title || 'Untitled Conversation'}
+                  >
+                    {thread.title || 'Untitled Conversation'}
+                  </button>
+                )}
+                {activeThreadId === thread.id && editingThreadId !== thread.id && (
+                  <button
+                    onClick={() => handleStartEdit(thread)}
+                    className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-opacity"
+                    title="Rename"
+                  >
+                    ✏️
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
