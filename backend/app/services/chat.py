@@ -48,7 +48,7 @@ class ChatService:
         stmt = (
             select(Thread)
             .where(Thread.id == thread_id, Thread.user_id == user_id)
-            .options(selectinload(Thread.messages))
+            .options(selectinload(Thread.messages).selectinload(Message.attachments))
         )
         result = await db.execute(stmt)
         return result.scalars().first()
@@ -119,11 +119,31 @@ class ChatService:
         return message
 
     @staticmethod
+    async def update_message(
+        db: AsyncSession,
+        message_id: UUID,
+        content: str,
+    ) -> Message | None:
+        """Update an existing message's content."""
+        stmt = select(Message).where(Message.id == message_id)
+        result = await db.execute(stmt)
+        message = result.scalars().first()
+        
+        if not message:
+            return None
+        
+        message.content = content
+        await db.commit()
+        await db.refresh(message)
+        return message
+
+    @staticmethod
     async def get_thread_messages(db: AsyncSession, thread_id: UUID) -> list[Message]:
         """Get all messages in a thread."""
         stmt = (
             select(Message)
             .where(Message.thread_id == thread_id)
+            .options(selectinload(Message.attachments))
             .order_by(Message.created_at.asc())
         )
         result = await db.execute(stmt)

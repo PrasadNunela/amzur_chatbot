@@ -56,3 +56,22 @@ class Message(Base):
 
     # Relationships
     thread = relationship("Thread", back_populates="messages")
+    attachments = relationship("Attachment", back_populates="message", cascade="all, delete-orphan")
+
+
+class Attachment(Base):
+    """File attachment model."""
+
+    __tablename__ = "attachments"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    message_id = Column(PG_UUID(as_uuid=True), ForeignKey("messages.id"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)
+    file_path = Column(String(255), nullable=False)
+    mime_type = Column(String(100), nullable=False)
+    file_size = Column(String(50), nullable=False)  # Stored as string; converted in schema for large files
+    file_type = Column(String(50), nullable=False)  # "image", "video", "code", "document", "table"
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    message = relationship("Message", back_populates="attachments")

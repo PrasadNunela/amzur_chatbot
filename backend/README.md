@@ -21,23 +21,32 @@
    pip install -r requirements.txt
    ```
 
-3. **Configure environment variables:**
+3. **Verify setup:**
+   ```bash
+   python verify_setup.py
+   ```
+   This checks Python version, dependencies, and environment configuration.
+
+4. **Configure environment variables:**
    ```bash
    cp .env.example .env
    ```
    Then edit `.env` with your values:
    - `SECRET_KEY`: Generate a strong secret key
    - `DATABASE_URL`: Your PostgreSQL connection string
-   - `LITELLM_PROXY_URL`: Set to `http://litellm.amzur.com:4000`
+   - `LITELLM_PROXY_URL`: Set to `https://litellm.amzur.com` (internal only, requires VPN)
    - `LITELLM_API_KEY`: Your LiteLLM API key
    - Other settings as needed
 
-4. **Run database migrations:**
+5. **Run database migrations:**
    ```bash
-   alembic upgrade head
+   python run_migrations.py
    ```
+   Or manually with: `alembic upgrade head`
+   
+   This creates all required tables including the new `attachments` table for file support.
 
-5. **Start the development server:**
+6. **Start the development server:**
    ```bash
    python main.py
    ```

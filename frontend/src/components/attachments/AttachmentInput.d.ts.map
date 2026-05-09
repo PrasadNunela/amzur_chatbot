@@ -1,0 +1,1 @@
+{"version":3,"file":"AttachmentInput.d.ts","sourceRoot":"","sources":["AttachmentInput.tsx"],"names":[],"mappings":"AAAA;;GAEG;AAIH,UAAU,oBAAoB;IAC5B,eAAe,EAAE,CAAC,KAAK,EAAE,IAAI,EAAE,KAAK,IAAI,CAAA;IACxC,WAAW,CAAC,EAAE,MAAM,CAAA;IACpB,QAAQ,CAAC,EAAE,OAAO,CAAA;CACnB;AA6BD,wBAAgB,eAAe,CAAC,EAAE,eAAe,EAAE,WAA8B,EAAE,QAAgB,EAAE,EAAE,oBAAoB,2CAgG1H"}

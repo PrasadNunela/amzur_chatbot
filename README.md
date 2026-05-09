@@ -9,7 +9,8 @@ A modern, production-ready conversational AI chatbot built with **React**, **Fas
 - 🤖 **Google Gemini AI** - Powered by free Google Gemini API
 - 💬 **Multi-turn Conversations** - Full conversation history and context
 - 🧵 **Thread Management** - Create, switch, and organize multiple conversations
-- 💾 **Persistent Storage** - All messages saved to PostgreSQL database
+- � **File Attachments** - Upload images, videos, code, documents, tables and more
+- �💾 **Persistent Storage** - All messages saved to PostgreSQL database
 - ⚡ **Real-time Responses** - Instant AI responses with loading states
 - 🎨 **Modern UI** - Clean, responsive design with dark mode support
 - 📱 **Mobile Friendly** - Works seamlessly on desktop and mobile devices
@@ -69,7 +70,10 @@ http://localhost:5173
 ## 📖 Documentation
 
 - **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Comprehensive setup and troubleshooting
-- **[API Documentation](./backend/README.md)** - Backend API endpoints
+- **[ATTACHMENT_IMPLEMENTATION.md](./ATTACHMENT_IMPLEMENTATION.md)** - File upload and attachment feature guide
+- **[API Documentation](./backend/README.md)** - Backend API endpoints and setup
+- **[Database Migrations Guide](./backend/MIGRATIONS.md)** - Migration management and schema
+- **[Quick Migration Setup](./backend/QUICK_MIGRATION_SETUP.md)** - Fast reference for running migrations
 - **[Frontend Guide](./frontend/README.md)** - Frontend components and state management
 
 ## 📁 Project Structure

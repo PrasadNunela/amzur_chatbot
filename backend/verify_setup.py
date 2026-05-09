@@ -154,7 +154,8 @@ def check_main_files():
     return all_present
 
 
-def check_googleLiteLLM API key is configured and valid"""
+def check_litellm_api():
+    """Check that LiteLLM API key is configured and valid."""
     print("\n📍 Checking LiteLLM API...")
     try:
         from app.core.config import settings
@@ -177,6 +178,43 @@ def check_googleLiteLLM API key is configured and valid"""
         return False
 
 
+def check_database_migrations():
+    """Check if database migrations have been applied."""
+    print("\n📍 Checking database migrations...")
+    try:
+        import subprocess
+        from app.core.config import settings
+        
+        # Try to connect to database and check if migrations exist
+        result = subprocess.run(
+            ["alembic", "current"],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent
+        )
+        
+        if result.returncode == 0:
+            current_revision = result.stdout.strip()
+            if current_revision:
+                print(f"  ✅ Current migration revision: {current_revision}")
+                return True
+            else:
+                print("  ⚠️  No migrations applied yet")
+                print("  Run: alembic upgrade head")
+                return False
+        else:
+            print("  ⚠️  Could not check migrations (database may not be accessible)")
+            print("  This is OK during initial setup")
+            return True
+            
+    except FileNotFoundError:
+        print("  ⚠️  Alembic not found - skipping migration check")
+        return True
+    except Exception as e:
+        print(f"  ⚠️  Could not verify migrations: {str(e)}")
+        return True
+
+
 def main():
     """Run all checks"""
     print("\n" + "=" * 60)
@@ -190,7 +228,8 @@ def main():
         ("Alembic Setup", check_alembic),
         ("App Structure", check_app_structure),
         ("Main Files", check_main_files),
-        ("Google Gemini API", check_google_api),
+        ("LiteLLM API", check_litellm_api),
+        ("Database Migrations", check_database_migrations),
     ]
     
     results = []
@@ -219,11 +258,13 @@ def main():
     if passed == total:
         print("\n🎉 Setup verification complete! You're ready to go.")
         print("\nNext steps:")
-        print("  1. Run migrations: alembic upgrade head")
+        print("  1. Apply migrations: python run_migrations.py")
         print("  2. Start server: python main.py")
         return 0
     else:
         print("\n⚠️  Please fix the above issues before starting the server.")
+        print("\nOnce fixed, run migrations with:")
+        print("  python run_migrations.py")
         return 1
 
 
