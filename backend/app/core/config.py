@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     MAX_UPLOAD_MB: int = 20
     UPLOAD_DIR: str = "./uploads"
 
+    # Research digest agent provider settings
+    RESEARCH_PROVIDER: str = "native"  # native | mcp
+    MCP_ARXIV_ENDPOINT: Optional[str] = None
+
     class Config:
         env_file = ".env"
         case_sensitive = True

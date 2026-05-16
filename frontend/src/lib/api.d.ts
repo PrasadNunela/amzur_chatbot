@@ -45,6 +45,12 @@ declare class ApiClient {
     setThreadContextFromCsv(threadId: string, file: File): Promise<Thread>;
     setThreadContextFromSheetsUrl(threadId: string, googleSheetsUrl: string): Promise<Thread>;
     queryThreadContext(threadId: string, userQuestion: string): Promise<DataQueryResponse>;
+    getResearchDigestStreamUrl(params: {
+        topic: string;
+        maxIterations?: number;
+        confidenceThreshold?: number;
+        maxResultsPerSearch?: number;
+    }): string;
 }
 export declare const apiClient: ApiClient;
 export {};

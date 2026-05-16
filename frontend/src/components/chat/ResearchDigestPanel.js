@@ -1,0 +1,25 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { useMemo, useState } from 'react';
+import { useResearchDigestStream } from '../../hooks/useResearchDigestStream';
+export function ResearchDigestPanel({ isOpen, onClose }) {
+    const [topic, setTopic] = useState('quantum error correction with transformers');
+    const { events, digestText, isRunning, error, latestState, start, stop, reset, } = useResearchDigestStream();
+    const statusFeed = useMemo(() => events.filter((event) => event.type === 'status').map((event, index) => ({
+        key: `${index}-${String(event.data.message ?? 'status')}`,
+        text: String(event.data.message ?? ''),
+        query: event.data.query ? String(event.data.query) : null,
+    })), [events]);
+    if (!isOpen) {
+        return null;
+    }
+    return (_jsx("div", { className: "fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4", children: _jsxs("div", { className: "h-[92vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-2xl", children: [_jsxs("div", { className: "flex items-center justify-between border-b border-slate-700 px-5 py-4", children: [_jsxs("div", { children: [_jsx("h2", { className: "text-lg font-semibold", children: "Autonomous Research Digest Agent" }), _jsx("p", { className: "text-xs text-slate-400", children: "Real-time iterative arXiv loop with evidential stopping threshold" })] }), _jsx("button", { onClick: () => {
+                                stop();
+                                onClose();
+                            }, className: "rounded-lg border border-slate-600 px-3 py-1 text-sm hover:bg-slate-800", children: "Close" })] }), _jsxs("div", { className: "grid h-[calc(92vh-73px)] grid-cols-1 gap-4 overflow-hidden p-4 lg:grid-cols-[360px_1fr]", children: [_jsxs("div", { className: "flex flex-col gap-3 overflow-auto rounded-xl border border-slate-700 bg-slate-950/60 p-3", children: [_jsx("label", { className: "text-xs uppercase tracking-wider text-slate-400", children: "Research Topic" }), _jsx("textarea", { value: topic, onChange: (e) => setTopic(e.target.value), className: "h-24 rounded-lg border border-slate-600 bg-slate-900 p-2 text-sm outline-none focus:border-cyan-400" }), _jsxs("div", { className: "flex gap-2", children: [_jsx("button", { disabled: isRunning || topic.trim().length < 3, onClick: () => start({
+                                                topic: topic.trim(),
+                                                maxIterations: 5,
+                                                confidenceThreshold: 7,
+                                                maxResultsPerSearch: 8,
+                                            }), className: "flex-1 rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50", children: isRunning ? 'Running...' : 'Start Agent' }), _jsx("button", { onClick: stop, disabled: !isRunning, className: "rounded-lg border border-rose-500/70 px-3 py-2 text-sm text-rose-300 disabled:opacity-50", children: "Stop" }), _jsx("button", { onClick: reset, className: "rounded-lg border border-slate-600 px-3 py-2 text-sm", children: "Reset" })] }), _jsxs("div", { className: "rounded-lg border border-slate-700 bg-slate-900/70 p-3 text-xs", children: [_jsx("p", { className: "mb-2 font-semibold text-slate-300", children: "Loop State" }), latestState ? (_jsx("pre", { className: "whitespace-pre-wrap text-slate-300", children: JSON.stringify(latestState, null, 2) })) : (_jsx("p", { className: "text-slate-500", children: "No state updates yet." }))] }), error && (_jsx("div", { className: "rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-sm text-rose-200", children: error })), _jsxs("div", { className: "rounded-lg border border-slate-700 bg-slate-900/70 p-3 text-xs", children: [_jsx("p", { className: "mb-2 font-semibold text-slate-300", children: "Status Feed" }), _jsxs("div", { className: "max-h-64 space-y-2 overflow-auto", children: [statusFeed.length === 0 && _jsx("p", { className: "text-slate-500", children: "Waiting for events..." }), statusFeed.map((item) => (_jsxs("div", { className: "rounded-md border border-slate-700 bg-slate-950/70 p-2", children: [_jsx("p", { children: item.text }), item.query && _jsxs("p", { className: "mt-1 text-cyan-300", children: ["query: ", item.query] })] }, item.key)))] })] })] }), _jsxs("div", { className: "flex min-h-0 flex-col rounded-xl border border-slate-700 bg-slate-950/60 p-4", children: [_jsx("h3", { className: "mb-2 text-sm font-semibold text-slate-200", children: "Streaming Digest" }), _jsx("div", { className: "min-h-0 flex-1 overflow-auto rounded-lg border border-slate-700 bg-slate-900/80 p-4", children: _jsx("pre", { className: "whitespace-pre-wrap text-sm leading-relaxed text-slate-100", children: digestText || 'Digest tokens will stream here...' }) })] })] })] }) }));
+}
+//# sourceMappingURL=ResearchDigestPanel.js.map

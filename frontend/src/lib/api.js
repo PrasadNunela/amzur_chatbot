@@ -215,6 +215,18 @@ class ApiClient {
         }
         return this.queryDataframe(thread.context_source, userQuestion);
     }
+    getResearchDigestStreamUrl(params) {
+        const rootBaseUrl = this.baseUrl.endsWith('/api')
+            ? this.baseUrl.slice(0, -4)
+            : this.baseUrl;
+        const query = new URLSearchParams({
+            topic: params.topic,
+            max_iterations: String(params.maxIterations ?? 4),
+            confidence_threshold: String(params.confidenceThreshold ?? 7),
+            max_results_per_search: String(params.maxResultsPerSearch ?? 8),
+        });
+        return `${rootBaseUrl}/api/research-digest/stream?${query.toString()}`;
+    }
 }
 export const apiClient = new ApiClient(API_BASE_URL);
 //# sourceMappingURL=api.js.map
