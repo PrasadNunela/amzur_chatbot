@@ -7,6 +7,7 @@ import { ThreadSidebar } from './components/chat/ThreadSidebar'
 import { ChatThread } from './components/chat/ChatThread'
 import { DataQueryModal } from './components/chat/DataQueryModal'
 import { ResearchDigestPanel } from './components/chat/ResearchDigestPanel'
+import { TicTacToePanel } from './components/chat/TicTacToePanel'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import './App.css'
@@ -24,6 +25,7 @@ function ChatApp() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [showDataQueryModal, setShowDataQueryModal] = useState(false)
   const [showResearchDigestPanel, setShowResearchDigestPanel] = useState(false)
+  const [showTicTacToe, setShowTicTacToe] = useState(false)
   
   // Sync page based on auth state
   useEffect(() => {
@@ -163,6 +165,12 @@ function ChatApp() {
               Research Lab
             </button>
             <button
+              onClick={() => setShowTicTacToe(true)}
+              className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 md:text-sm"
+            >
+              Play Game
+            </button>
+            <button
               onClick={logout}
               className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 md:text-sm"
             >
@@ -205,6 +213,11 @@ function ChatApp() {
       <ResearchDigestPanel
         isOpen={showResearchDigestPanel}
         onClose={() => setShowResearchDigestPanel(false)}
+      />
+
+      <TicTacToePanel
+        isOpen={showTicTacToe}
+        onClose={() => setShowTicTacToe(false)}
       />
     </div>
   )

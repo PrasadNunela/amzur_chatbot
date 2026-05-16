@@ -74,8 +74,21 @@ class ApiClient {
         const contentType = response.headers.get('content-type') || ''
 
         if (contentType.includes('application/json')) {
-          const error = (await response.json()) as ApiError
-          message = error.message || message
+          const body = await response.json()
+          if (body.detail) {
+            // FastAPI validation errors use 'detail'
+            if (Array.isArray(body.detail)) {
+              message = body.detail.map((e: { loc?: string[]; msg?: string }) =>
+                e.msg || JSON.stringify(e)
+              ).join('; ')
+            } else if (typeof body.detail === 'object' && body.detail.message) {
+              message = body.detail.message
+            } else {
+              message = String(body.detail)
+            }
+          } else if (body.message) {
+            message = body.message
+          }
         } else {
           const text = await response.text()
           if (text?.trim()) {
@@ -281,6 +294,18 @@ class ApiClient {
     }
 
     return this.queryDataframe(thread.context_source, userQuestion)
+  }
+
+  async tictactoeMove(params: {
+    board: string[]
+    user_marker: 'X' | 'O'
+  }): Promise<{
+    move: number
+    trash_talk: string
+    board: string[]
+    game_status: 'ongoing' | 'ai_win' | 'user_win' | 'draw'
+  }> {
+    return this.post('/tictactoe/move', params)
   }
 
   getResearchDigestStreamUrl(params: {
