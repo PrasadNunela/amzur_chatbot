@@ -77,6 +77,39 @@ class ChatService:
         return thread
 
     @staticmethod
+    async def set_thread_context(
+        db: AsyncSession,
+        thread_id: UUID,
+        user_id: UUID,
+        context_type: str,
+        context_source: str,
+        context_label: str,
+    ) -> Thread | None:
+        """Set immutable context for a thread (CSV file or Google Sheets URL)."""
+        stmt = select(Thread).where(Thread.id == thread_id, Thread.user_id == user_id)
+        result = await db.execute(stmt)
+        thread = result.scalars().first()
+
+        if not thread:
+            return None
+
+        if thread.context_locked:
+            return thread
+
+        thread.context_type = context_type
+        thread.context_source = context_source
+        thread.context_label = context_label
+        thread.context_locked = True
+        thread.thread_mode = "data_analysis"
+        if not thread.title:
+            thread.title = f"{context_label} Chat"
+        thread.updated_at = datetime.utcnow()
+
+        await db.commit()
+        await db.refresh(thread)
+        return thread
+
+    @staticmethod
     async def list_threads(db: AsyncSession, user_id: UUID) -> list[Thread]:
         """List all threads for a user."""
         stmt = (

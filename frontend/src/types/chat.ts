@@ -23,6 +23,13 @@ export interface Message {
 export interface Thread {
   id: string
   title: string | null
+  thread_mode: 'general' | 'data_analysis'
+  thread_type?: 'general' | 'data_analysis'
+  context_type: 'csv' | 'google_sheets' | null
+  context_source: string | null
+  file_context_url?: string | null
+  context_label: string | null
+  context_locked: boolean
   created_at: string
   updated_at: string
 }

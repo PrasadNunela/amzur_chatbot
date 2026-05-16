@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -35,6 +35,11 @@ class Thread(Base):
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String(255), nullable=True)
+    thread_mode = Column(String(20), nullable=False, default="general")  # "general" or "data_analysis"
+    context_type = Column(String(20), nullable=True)  # "csv" or "google_sheets"
+    context_source = Column(Text, nullable=True)  # local file path or sheets URL
+    context_label = Column(String(255), nullable=True)  # display name in sidebar/header
+    context_locked = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 

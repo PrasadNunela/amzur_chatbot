@@ -56,23 +56,23 @@ export function ChatInput({ isLoading, threadId, onSend, onGenerateImage }: Chat
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="p-4 bg-white dark:bg-gray-800 border-t dark:border-gray-700 space-y-3">
+      <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl border border-slate-700 bg-slate-900/80 p-2.5 sm:p-3">
         {/* Attachment previews */}
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 pb-2 border-b dark:border-gray-700">
+          <div className="flex flex-wrap gap-2 border-b border-slate-700 pb-2">
             {attachments.map((file, index) => (
               <div
                 key={index}
-                className="flex items-center gap-2 px-3 py-2 bg-blue-100 dark:bg-blue-900 rounded-lg text-sm group"
+                className="group flex items-center gap-2 rounded-lg bg-cyan-500/15 px-3 py-2 text-sm text-cyan-100"
               >
                 <span className="truncate max-w-xs">{file.name}</span>
-                <span className="text-xs text-gray-600 dark:text-gray-400">
+                <span className="text-xs text-cyan-300/80">
                   ({file.size < 1024 * 1024 ? (file.size / 1024).toFixed(1) + ' KB' : (file.size / 1024 / 1024).toFixed(1) + ' MB'})
                 </span>
                 <button
                   type="button"
                   onClick={() => removeAttachment(index)}
-                  className="text-red-500 hover:text-red-700 font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="font-bold text-rose-300 opacity-0 transition-opacity hover:text-rose-200 group-hover:opacity-100"
                   title="Remove attachment"
                 >
                   ✕
@@ -83,14 +83,14 @@ export function ChatInput({ isLoading, threadId, onSend, onGenerateImage }: Chat
         )}
 
         {/* Input area */}
-        <div className="flex gap-2">
-          <input
-            type="text"
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message... (or add attachments)"
+            placeholder="Message your workspace..."
             disabled={isLoading || isGeneratingImage}
-            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            rows={1}
+            className="min-h-[44px] max-h-44 w-full flex-1 resize-y rounded-xl border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
             onKeyDown={(e) => {
               // Allow Ctrl+Enter or Cmd+Enter to send
               if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -99,27 +99,29 @@ export function ChatInput({ isLoading, threadId, onSend, onGenerateImage }: Chat
             }}
           />
 
-          {/* File attachment button */}
-          <AttachmentInput onFilesSelected={handleAddFiles} disabled={isLoading || isGeneratingImage} />
+          <div className="flex w-full shrink-0 items-center gap-2 self-end sm:w-auto sm:self-auto">
+            {/* File attachment button */}
+            <AttachmentInput onFilesSelected={handleAddFiles} disabled={isLoading || isGeneratingImage} />
 
-          {/* Image generation button */}
-          <button
-            type="button"
-            onClick={() => setShowImageModal(true)}
-            disabled={isLoading || isGeneratingImage || !threadId}
-            className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
-            title="Generate image with AI"
-          >
-            🎨
-          </button>
+            {/* Image generation button */}
+            <button
+              type="button"
+              onClick={() => setShowImageModal(true)}
+              disabled={isLoading || isGeneratingImage || !threadId}
+              className="rounded-xl border border-amber-500/40 bg-amber-500/15 px-3 py-2 font-semibold text-amber-100 transition-colors hover:bg-amber-500/25 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Generate image with AI"
+            >
+              🎨
+            </button>
 
-          <button
-            type="submit"
-            disabled={isLoading || isGeneratingImage || (!message.trim() && attachments.length === 0)}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? 'Sending...' : 'Send'}
-          </button>
+            <button
+              type="submit"
+              disabled={isLoading || isGeneratingImage || (!message.trim() && attachments.length === 0)}
+              className="ml-auto rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-2 text-white hover:from-cyan-400 hover:to-blue-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50 transition-colors sm:ml-0"
+            >
+              {isLoading ? 'Sending...' : 'Send'}
+            </button>
+          </div>
         </div>
       </form>
 

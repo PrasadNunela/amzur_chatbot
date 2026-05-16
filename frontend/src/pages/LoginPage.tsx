@@ -12,6 +12,8 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLoginSuccess, onLoginSuccessGoogle, onNavigateToRegister }: LoginPageProps) {
+  const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) || ''
+  const hasGoogleOAuth = googleClientId.trim().length > 0
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -121,20 +123,24 @@ export function LoginPage({ onLoginSuccess, onLoginSuccessGoogle, onNavigateToRe
           </button>
         </form>
 
-        {/* Google OAuth Divider */}
-        <div className="mt-6 flex items-center">
-          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
-          <span className="px-3 text-sm text-gray-600 dark:text-gray-400">or</span>
-          <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
-        </div>
+        {hasGoogleOAuth && (
+          <>
+            {/* Google OAuth Divider */}
+            <div className="mt-6 flex items-center">
+              <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+              <span className="px-3 text-sm text-gray-600 dark:text-gray-400">or</span>
+              <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+            </div>
 
-        {/* Google OAuth Button */}
-        <div className="mt-6 flex justify-center">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-          />
-        </div>
+            {/* Google OAuth Button */}
+            <div className="mt-6 flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+              />
+            </div>
+          </>
+        )}
 
         <p className="text-center text-gray-600 dark:text-gray-400 mt-6">
           Don't have an account?{' '}

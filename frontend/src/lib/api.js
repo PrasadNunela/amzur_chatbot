@@ -15,19 +15,62 @@ class ApiClient {
     }
     async request(endpoint, options) {
         const url = `${this.baseUrl}${endpoint}`;
-        const response = await fetch(url, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-            },
-            credentials: 'include', // Include cookies for JWT auth
+        console.log('[ApiClient-request] STEP 1 - Making request:', {
+            method: options?.method || 'GET',
+            endpoint,
+            url,
+            hasBody: !!options?.body
         });
-        if (!response.ok) {
-            const error = (await response.json());
-            throw new Error(error.message || `API error: ${response.status}`);
+        try {
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options?.headers,
+                },
+                credentials: 'include', // Include cookies for JWT auth
+            });
+            console.log('[ApiClient-request] STEP 2 - Response received:', {
+                status: response.status,
+                ok: response.ok,
+                statusText: response.statusText,
+                headers: {
+                    contentType: response.headers.get('content-type')
+                }
+            });
+            if (!response.ok) {
+                console.error('[ApiClient-request] ERROR - Response not OK:', {
+                    status: response.status,
+                    url
+                });
+                let message = `API error: ${response.status}`;
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const error = (await response.json());
+                    message = error.message || message;
+                }
+                else {
+                    const text = await response.text();
+                    if (text?.trim()) {
+                        message = text.trim();
+                    }
+                }
+                throw new Error(message);
+            }
+            console.log('[ApiClient-request] STEP 3 - Parsing JSON response');
+            const data = await response.json();
+            console.log('[ApiClient-request] STEP 4 - JSON parsed successfully, type:', typeof data);
+            return data;
         }
-        return response.json();
+        catch (error) {
+            console.error('[ApiClient-request] ERROR - Request failed:', {
+                error,
+                message: error instanceof Error ? error.message : String(error),
+                endpoint,
+                url
+            });
+            throw error;
+        }
     }
     // Example methods — add more as needed
     async get(endpoint) {
@@ -101,12 +144,76 @@ class ApiClient {
         return response.json();
     }
     async generateImage(threadId, prompt, size = '1024x1024', quality = 'standard', n = 1) {
-        return this.post(`/chat/threads/${threadId}/generate-image`, {
-            prompt,
-            size,
-            quality,
-            n,
+        return this.post(`/chat/threads/${threadId}/generate-image`, { prompt, size, quality, n });
+    }
+    async queryDataframe(fileSource, userQuestion) {
+        const rootBaseUrl = this.baseUrl.endsWith('/api')
+            ? this.baseUrl.slice(0, -4)
+            : this.baseUrl;
+        const response = await fetch(`${rootBaseUrl}/query`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                file_source: fileSource,
+                user_question: userQuestion,
+            }),
         });
+        if (!response.ok) {
+            const error = (await response.json());
+            throw new Error(error.message || `Query failed: ${response.status}`);
+        }
+        return response.json();
+    }
+    async queryUploadedCsv(file, userQuestion) {
+        const rootBaseUrl = this.baseUrl.endsWith('/api')
+            ? this.baseUrl.slice(0, -4)
+            : this.baseUrl;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('user_question', userQuestion);
+        const response = await fetch(`${rootBaseUrl}/query/upload`, {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+        });
+        if (!response.ok) {
+            const error = (await response.json());
+            throw new Error(error.message || `Upload query failed: ${response.status}`);
+        }
+        return response.json();
+    }
+    async setThreadContextFromCsv(threadId, file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const url = `${this.baseUrl}/chat/threads/${threadId}/context/upload`;
+        const response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+        });
+        if (!response.ok) {
+            const error = (await response.json());
+            throw new Error(error.message || `Context upload failed: ${response.status}`);
+        }
+        return response.json();
+    }
+    async setThreadContextFromSheetsUrl(threadId, googleSheetsUrl) {
+        return this.post(`/chat/threads/${threadId}/context/sheets`, {
+            google_sheets_url: googleSheetsUrl,
+        });
+    }
+    async queryThreadContext(threadId, userQuestion) {
+        const thread = await this.get(`/chat/threads/${threadId}`);
+        if (!thread.context_locked || !thread.context_type || !thread.context_source) {
+            throw new Error('Thread context is not initialized');
+        }
+        if (thread.context_type === 'csv') {
+            return this.queryDataframe(thread.context_source, userQuestion);
+        }
+        return this.queryDataframe(thread.context_source, userQuestion);
     }
 }
 export const apiClient = new ApiClient(API_BASE_URL);

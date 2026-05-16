@@ -8,7 +8,7 @@ import { apiClient } from '../../lib/api'
 import { Message, ThreadDetail, ChatResponseSchema } from '../../types/chat'
 import { ChatInput } from './ChatInput'
 import { MessageList } from './MessageList'
-import { LoadingSpinner } from '../common/LoadingSpinner'
+import { CsvOrSheetSourceInput } from './CsvOrSheetSourceInput'
 
 interface ChatThreadProps {
   threadId: string
@@ -21,8 +21,10 @@ export function ChatThread({ threadId }: ChatThreadProps) {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitle, setEditTitle] = useState('')
+  const [isSettingContext, setIsSettingContext] = useState(false)
+  const [showAttachContext, setShowAttachContext] = useState(false)
+  const [density, setDensity] = useState<'compact' | 'cozy'>('cozy')
   const skipMessageUpdateRef = useRef(false) // Prevent useEffect from overwriting during attachment upload
-  const isInitialLoadRef = useRef(true) // Track if this is the first load
 
   // Fetch thread with messages
   const { data: thread, isLoading: isThreadLoading, refetch: refetchThread } = useQuery({
@@ -255,6 +257,28 @@ export function ChatThread({ threadId }: ChatThreadProps) {
     setIsEditingTitle(false)
   }
 
+  const handleSetThreadContext = async (
+    payload: { type: 'file'; file: File } | { type: 'url'; url: string },
+  ) => {
+    setIsSettingContext(true)
+    try {
+      if (payload.type === 'file') {
+        await apiClient.setThreadContextFromCsv(threadId, payload.file)
+      } else {
+        await apiClient.setThreadContextFromSheetsUrl(threadId, payload.url)
+      }
+
+      await refetchThread()
+      queryClient.invalidateQueries({ queryKey: ['threads'] })
+      setShowAttachContext(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to set thread context'
+      alert(message)
+    } finally {
+      setIsSettingContext(false)
+    }
+  }
+
   if (isThreadLoading && messages.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -264,60 +288,118 @@ export function ChatThread({ threadId }: ChatThreadProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800">
+    <div className="flex h-full w-full min-w-0 flex-1 flex-col bg-transparent">
       {/* Header */}
-      <div className="bg-blue-500 text-white px-4 py-3 shadow flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-slate-700/70 bg-slate-900/70 px-3 py-3 text-slate-100 backdrop-blur sm:px-4">
         {isEditingTitle ? (
-          <div className="flex items-center gap-2 flex-1">
+          <div className="flex flex-1 items-center gap-2">
             <input
               type="text"
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               placeholder="Enter conversation title"
-              className="flex-1 px-2 py-1 rounded bg-blue-600 text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white"
+              className="flex-1 rounded bg-slate-800 px-2 py-1 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400"
               autoFocus
             />
             <button
               onClick={handleSaveTitle}
               disabled={updateTitleMutation.isPending}
-              className="px-3 py-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 rounded text-sm font-semibold"
+              className="rounded bg-emerald-500 px-3 py-1 text-sm font-semibold hover:bg-emerald-600 disabled:opacity-50"
             >
               Save
             </button>
             <button
               onClick={handleCancelEdit}
               disabled={updateTitleMutation.isPending}
-              className="px-3 py-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded text-sm font-semibold"
+              className="rounded bg-rose-500 px-3 py-1 text-sm font-semibold hover:bg-rose-600 disabled:opacity-50"
             >
               Cancel
             </button>
           </div>
         ) : (
-          <div className="flex items-center justify-between w-full">
-            <h2 className="text-lg font-semibold">
+          <div className="flex w-full items-center justify-between gap-2">
+            <h2 className="truncate text-sm font-semibold sm:text-base lg:text-lg xl:text-xl">
               {thread?.title || 'Untitled Conversation'}
             </h2>
-            <button
-              onClick={() => setIsEditingTitle(true)}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-semibold"
-              title="Rename conversation"
-            >
-              ✏️ Rename
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="hidden items-center rounded-lg border border-slate-600 bg-slate-800 p-1 sm:flex">
+                <button
+                  type="button"
+                  onClick={() => setDensity('compact')}
+                  className={`rounded px-2 py-1 text-xs font-semibold transition ${
+                    density === 'compact'
+                      ? 'bg-cyan-500/30 text-cyan-100'
+                      : 'text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  Compact
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDensity('cozy')}
+                  className={`rounded px-2 py-1 text-xs font-semibold transition ${
+                    density === 'cozy'
+                      ? 'bg-cyan-500/30 text-cyan-100'
+                      : 'text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  Cozy
+                </button>
+              </div>
+              <button
+                onClick={() => setIsEditingTitle(true)}
+                className="rounded border border-cyan-500/40 bg-cyan-500/15 px-3 py-1 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25 sm:text-sm"
+                title="Rename conversation"
+              >
+                ✏️ Rename
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Messages */}
-      <MessageList messages={messages} isLoading={isLoading} isGeneratingImage={isGeneratingImage} />
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* Messages */}
+        <MessageList
+          messages={messages}
+          isLoading={isLoading}
+          isGeneratingImage={isGeneratingImage}
+          density={density}
+        />
 
-      {/* Input */}
-      <ChatInput 
-        isLoading={isLoading} 
-        threadId={threadId}
-        onSend={handleSendMessage}
-        onGenerateImage={handleGenerateImage}
-      />
+        {/* Unified composer area for regular and data chat */}
+        <div className="border-t border-slate-700/70 px-2 py-3 sm:px-4">
+          <div className="w-full">
+          {thread?.context_locked && thread.context_label ? (
+            <div className="mb-3 inline-flex items-center rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200">
+              Data Context: {thread.context_label}
+            </div>
+          ) : (
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={() => setShowAttachContext((prev) => !prev)}
+                className="rounded-lg border border-cyan-500/40 px-3 py-1.5 text-sm font-medium text-cyan-200 transition-colors hover:bg-cyan-500/15"
+              >
+                + Add Data
+              </button>
+              {showAttachContext && (
+                <div className="mt-3 rounded-xl border border-slate-700 bg-slate-800/60 p-3">
+                  <CsvOrSheetSourceInput isSubmitting={isSettingContext} onSubmit={handleSetThreadContext} />
+                </div>
+              )}
+            </div>
+          )}
+
+          <ChatInput
+            isLoading={isLoading || isSettingContext}
+            threadId={threadId}
+            onSend={handleSendMessage}
+            onGenerateImage={handleGenerateImage}
+          />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

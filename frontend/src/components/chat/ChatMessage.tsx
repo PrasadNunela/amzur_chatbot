@@ -9,35 +9,86 @@ import remarkGfm from 'remark-gfm'
 
 interface ChatMessageProps {
   message: Message
+  density?: 'compact' | 'cozy'
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+function normalizeMarkdownTables(content: string): string {
+  if (!content) {
+    return content
+  }
+
+  let normalized = content.replace(/\\n/g, '\n')
+
+  // If the model wrapped a markdown table in a fenced block, unwrap it so GFM can render it as a table.
+  normalized = normalized.replace(/```(?:markdown|md)?\s*\n([\s\S]*?)\n```/gi, (fullMatch, inner) => {
+    const trimmedInner = String(inner).trim()
+    const hasTableRows = trimmedInner.split('\n').some((line) => line.includes('|'))
+    return hasTableRows ? trimmedInner : fullMatch
+  })
+
+  const lines = normalized.split('\n')
+  const out: string[] = []
+
+  const isTableLine = (line: string): boolean => {
+    const trimmed = line.trim()
+    if (!trimmed.includes('|')) {
+      return false
+    }
+
+    const withoutPipes = trimmed.replace(/\|/g, '').trim()
+    const isSeparator = /^:?-{3,}:?$/.test(withoutPipes.replace(/\s+/g, ''))
+    return isSeparator || trimmed.startsWith('|') || trimmed.endsWith('|')
+  }
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const current = lines[i]
+    const prev = i > 0 ? lines[i - 1] : ''
+    const next = i < lines.length - 1 ? lines[i + 1] : ''
+    const prevIsTableLine = isTableLine(prev)
+    const nextIsTableLine = isTableLine(next)
+
+    if (isTableLine(current) && !prevIsTableLine && prev.trim() !== '' && out[out.length - 1]?.trim() !== '') {
+      out.push('')
+    }
+
+    out.push(current)
+
+    if (isTableLine(current) && !nextIsTableLine && next.trim() !== '') {
+      out.push('')
+    }
+  }
+
+  return out.join('\n').trim()
+}
+
+export function ChatMessage({ message, density = 'cozy' }: ChatMessageProps) {
   const isUser = message.role === 'user'
+  const normalizedContent = normalizeMarkdownTables(message.content)
   // Detect if message contains a table
-  const hasTable = message.content.includes('|') && message.content.split('\n').some(line => line.includes('|'))
+  const hasTable = normalizedContent.includes('|') && normalizedContent.split('\n').some(line => line.includes('|'))
 
   return (
-    <div className={`flex mb-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`mb-4 flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`px-4 py-2 rounded-lg ${
+        className={`rounded-2xl ${density === 'compact' ? 'px-3 py-2' : 'px-4 py-3'} ${
           hasTable
-            ? 'max-w-2xl lg:max-w-4xl'
-            : 'max-w-xs lg:max-w-md'
+            ? 'w-full max-w-full'
+            : 'w-fit max-w-full'
         } ${
           isUser
-            ? 'bg-blue-500 text-white rounded-br-none'
-            : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none'
+            ? 'rounded-br-md bg-cyan-500 text-white'
+            : 'rounded-bl-md bg-slate-700/80 text-gray-100'
         }`}
       >
         {/* Render markdown content with proper table styling */}
-        <div className={`text-sm break-words markdown-content ${
+        <div className={`markdown-content break-words leading-relaxed ${density === 'compact' ? 'text-[0.88rem] sm:text-[0.92rem]' : 'text-sm sm:text-[0.95rem]'} ${
           hasTable ? '' : 'text-justify'
-        } ${isUser ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+        } ${isUser ? 'text-white' : 'text-gray-100'}`}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
               table: ({ node, ...props }) => (
-                <div className="overflow-x-auto my-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xl bg-white dark:bg-gray-900">
+                <div className="my-4 overflow-x-auto rounded-xl border border-slate-500/40 bg-slate-900 shadow-2xl">
                   <table className="w-full border-collapse text-xs md:text-sm" {...props} />
                 </div>
               ),
@@ -56,14 +107,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
               th: ({ node, ...props }) => (
                 <th className="border-r border-indigo-700 dark:border-indigo-800 px-4 py-4 font-extrabold text-left align-middle text-white uppercase tracking-wide text-xs" {...props} />
               ),
-              code: ({ node, inline, className, ...props }: any) => 
+              code: ({ node, inline, className, ...props }: any) =>
                 inline ? (
-                  <code className="bg-gray-300 dark:bg-gray-600 px-1 py-0.5 rounded text-xs" {...props} />
+                  <code className="rounded bg-slate-900/70 px-1 py-0.5 text-xs" {...props} />
                 ) : (
-                  <code className="block bg-gray-300 dark:bg-gray-600 p-2 rounded text-xs overflow-x-auto" {...props} />
+                  <code className="block overflow-x-auto rounded bg-slate-900/70 p-2 text-xs" {...props} />
                 ),
               pre: ({ node, ...props }) => (
-                <pre className="bg-gray-300 dark:bg-gray-600 p-2 rounded my-2 text-xs overflow-x-auto" {...props} />
+                <pre className="my-2 overflow-x-auto rounded bg-slate-900/70 p-2 text-xs" {...props} />
               ),
               ul: ({ node, ...props }) => (
                 <ul className="list-disc list-inside my-1" {...props} />
@@ -82,7 +133,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
               h3: ({ node, ...props }) => (<h3 className="text-sm font-bold my-1" {...props} />),
             }}
           >
-            {message.content}
+            {normalizedContent}
           </ReactMarkdown>
         </div>
 
@@ -93,7 +144,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </div>
         )}
 
-        <span className={`text-xs mt-2 block ${isUser ? 'text-blue-100' : 'text-gray-500'}`}>
+        <span className={`mt-2 block text-xs ${isUser ? 'text-cyan-100' : 'text-slate-300'}`}>
           {new Date(message.created_at).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',

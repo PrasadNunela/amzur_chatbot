@@ -3,7 +3,7 @@
  * All API calls must go through this module — never call fetch or axios directly in components.
  */
 
-import { Thread } from '../types/chat'
+import { Thread, ThreadDetail } from '../types/chat'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000/api'
 
@@ -19,6 +19,12 @@ export interface AuthResponse {
     full_name: string | null
   }
   message: string
+}
+
+export interface DataQueryResponse {
+  answer: string
+  row_count: number
+  column_count: number
 }
 
 class ApiClient {
@@ -64,8 +70,20 @@ class ApiClient {
           status: response.status, 
           url 
         })
-        const error = (await response.json()) as ApiError
-        throw new Error(error.message || `API error: ${response.status}`)
+        let message = `API error: ${response.status}`
+        const contentType = response.headers.get('content-type') || ''
+
+        if (contentType.includes('application/json')) {
+          const error = (await response.json()) as ApiError
+          message = error.message || message
+        } else {
+          const text = await response.text()
+          if (text?.trim()) {
+            message = text.trim()
+          }
+        }
+
+        throw new Error(message)
       }
 
       console.log('[ApiClient-request] STEP 3 - Parsing JSON response')
@@ -177,6 +195,92 @@ class ApiClient {
       `/chat/threads/${threadId}/generate-image`,
       { prompt, size, quality, n },
     )
+  }
+
+  async queryDataframe(fileSource: string, userQuestion: string): Promise<DataQueryResponse> {
+    const rootBaseUrl = this.baseUrl.endsWith('/api')
+      ? this.baseUrl.slice(0, -4)
+      : this.baseUrl
+
+    const response = await fetch(`${rootBaseUrl}/query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        file_source: fileSource,
+        user_question: userQuestion,
+      }),
+    })
+
+    if (!response.ok) {
+      const error = (await response.json()) as ApiError
+      throw new Error(error.message || `Query failed: ${response.status}`)
+    }
+
+    return response.json() as Promise<DataQueryResponse>
+  }
+
+  async queryUploadedCsv(file: File, userQuestion: string): Promise<DataQueryResponse> {
+    const rootBaseUrl = this.baseUrl.endsWith('/api')
+      ? this.baseUrl.slice(0, -4)
+      : this.baseUrl
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('user_question', userQuestion)
+
+    const response = await fetch(`${rootBaseUrl}/query/upload`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const error = (await response.json()) as ApiError
+      throw new Error(error.message || `Upload query failed: ${response.status}`)
+    }
+
+    return response.json() as Promise<DataQueryResponse>
+  }
+
+  async setThreadContextFromCsv(threadId: string, file: File): Promise<Thread> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const url = `${this.baseUrl}/chat/threads/${threadId}/context/upload`
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const error = (await response.json()) as ApiError
+      throw new Error(error.message || `Context upload failed: ${response.status}`)
+    }
+
+    return response.json() as Promise<Thread>
+  }
+
+  async setThreadContextFromSheetsUrl(threadId: string, googleSheetsUrl: string): Promise<Thread> {
+    return this.post<Thread>(`/chat/threads/${threadId}/context/sheets`, {
+      google_sheets_url: googleSheetsUrl,
+    })
+  }
+
+  async queryThreadContext(threadId: string, userQuestion: string): Promise<DataQueryResponse> {
+    const thread = await this.get<ThreadDetail>(`/chat/threads/${threadId}`)
+    if (!thread.context_locked || !thread.context_type || !thread.context_source) {
+      throw new Error('Thread context is not initialized')
+    }
+
+    if (thread.context_type === 'csv') {
+      return this.queryDataframe(thread.context_source, userQuestion)
+    }
+
+    return this.queryDataframe(thread.context_source, userQuestion)
   }
 }
 

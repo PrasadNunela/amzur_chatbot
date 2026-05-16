@@ -39,9 +39,11 @@ app.add_middleware(
 # Import and include routers
 from app.api.chat import router as chat_router
 from app.api.auth import router as auth_router
+from app.routes.query import router as query_router
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
+app.include_router(query_router)
 
 
 @app.get("/health")

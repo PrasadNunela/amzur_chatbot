@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AttachmentSchema(BaseModel):
@@ -63,8 +63,22 @@ class ThreadSchema(ThreadBaseSchema):
     """Thread response schema."""
 
     id: UUID
+    thread_mode: str = "general"
+    thread_type: str = "general"
+    context_type: str | None = None
+    context_source: str | None = None
+    file_context_url: str | None = None
+    context_label: str | None = None
+    context_locked: bool = False
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode='after')
+    def sync_alias_fields(self):
+        """Keep compatibility aliases in sync with canonical fields."""
+        self.thread_type = self.thread_mode
+        self.file_context_url = self.context_source
+        return self
 
     class Config:
         from_attributes = True
@@ -74,6 +88,12 @@ class ThreadDetailSchema(ThreadSchema):
     """Thread with messages response."""
 
     messages: list[MessageSchema] = Field(default_factory=list)
+
+
+class ThreadContextUrlSchema(BaseModel):
+    """Request schema for setting a thread context from Google Sheets URL."""
+
+    google_sheets_url: str = Field(..., min_length=10, max_length=2048)
 
 
 class ChatMessageSchema(BaseModel):

@@ -1,5 +1,6 @@
 """Chat API router."""
 
+import asyncio
 from uuid import UUID
 from pathlib import Path
 
@@ -22,15 +23,83 @@ from app.schemas.chat import (
     ThreadDetailSchema,
     ThreadSchema,
     ThreadUpdateSchema,
+    ThreadContextUrlSchema,
 )
 from app.services.chat import ChatService
 from app.services.attachments import AttachmentService
 from app.services.image_generation import ImageGenerationService
+from app.services.agent_service import AgentExecutionError, AgentService
+from app.services.sheets_service import SheetsService
 from app.core.config import settings
 from sqlalchemy import select
 from app.models.chat import Message
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+MAX_HISTORY_MESSAGES = 12
+MAX_HISTORY_MESSAGE_CHARS = 4000
+MAX_ATTACHMENT_TEXT_CHARS = 20000
+
+
+def _normalize_assistant_text(value: object) -> str:
+    """Convert various LLM outputs into a safe plain string."""
+    if isinstance(value, str):
+        text = value
+    elif hasattr(value, "content"):
+        content = getattr(value, "content")
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            chunks: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    chunks.append(item)
+                elif isinstance(item, dict):
+                    maybe_text = item.get("text")
+                    if isinstance(maybe_text, str) and maybe_text.strip():
+                        chunks.append(maybe_text)
+            text = "\n".join(chunks)
+        else:
+            text = str(content)
+    elif isinstance(value, list):
+        text = "\n".join(str(v) for v in value)
+    elif value is None:
+        text = ""
+    else:
+        text = str(value)
+
+    text = text.strip()
+    return text if text else "I could not generate a response. Please try again."
+
+
+def _truncate_text(value: str, max_chars: int) -> str:
+    """Trim oversized text payloads to avoid token blowups."""
+    if len(value) <= max_chars:
+        return value
+    return value[:max_chars] + "\n\n[Content truncated for token safety]"
+
+
+def _prepare_history(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep only recent history and bound text size for provider stability."""
+    recent = messages[-MAX_HISTORY_MESSAGES:]
+    return [
+        {
+            "role": msg["role"],
+            "content": _truncate_text(msg["content"], MAX_HISTORY_MESSAGE_CHARS),
+        }
+        for msg in recent
+    ]
+
+
+def _prepare_attachment_contents(attachments: list[str | dict]) -> list[str | dict]:
+    """Trim oversized text attachments while preserving multimodal dict payloads."""
+    prepared: list[str | dict] = []
+    for attachment in attachments:
+        if isinstance(attachment, str):
+            prepared.append(_truncate_text(attachment, MAX_ATTACHMENT_TEXT_CHARS))
+        else:
+            prepared.append(attachment)
+    return prepared
 
 
 @router.post("/threads", response_model=ThreadSchema)
@@ -89,6 +158,98 @@ async def update_thread(
     return ThreadSchema.model_validate(thread)
 
 
+@router.post("/threads/{thread_id}/context/upload", response_model=ThreadSchema)
+async def set_thread_context_from_csv(
+    thread_id: UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> ThreadSchema:
+    """Initialize thread context by uploading a CSV file.
+
+    Context is immutable once initialized for a thread.
+    """
+    user_id = UUID(current_user["id"])
+    thread = await ChatService.get_thread(db, thread_id, user_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Thread not found"})
+
+    if thread.context_locked:
+        return ThreadSchema.model_validate(thread)
+
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_file_type", "message": "Only .csv files are allowed"},
+        )
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "empty_file", "message": "Uploaded CSV file is empty"},
+        )
+
+    context_dir = Path(settings.UPLOAD_DIR) / "thread_contexts"
+    context_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{thread_id}_{file.filename}"
+    file_path = context_dir / filename
+    file_path.write_bytes(content)
+
+    updated_thread = await ChatService.set_thread_context(
+        db=db,
+        thread_id=thread_id,
+        user_id=user_id,
+        context_type="csv",
+        context_source=str(file_path.resolve()),
+        context_label=file.filename,
+    )
+    if not updated_thread:
+        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Thread not found"})
+
+    return ThreadSchema.model_validate(updated_thread)
+
+
+@router.post("/threads/{thread_id}/context/sheets", response_model=ThreadSchema)
+async def set_thread_context_from_sheets(
+    thread_id: UUID,
+    payload: ThreadContextUrlSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+) -> ThreadSchema:
+    """Initialize thread context with a Google Sheets URL.
+
+    Context is immutable once initialized for a thread.
+    """
+    user_id = UUID(current_user["id"])
+    thread = await ChatService.get_thread(db, thread_id, user_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Thread not found"})
+
+    if thread.context_locked:
+        return ThreadSchema.model_validate(thread)
+
+    url = payload.google_sheets_url.strip()
+    if "docs.google.com/spreadsheets" not in url:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_url", "message": "Provide a valid Google Sheets URL"},
+        )
+
+    updated_thread = await ChatService.set_thread_context(
+        db=db,
+        thread_id=thread_id,
+        user_id=user_id,
+        context_type="google_sheets",
+        context_source=url,
+        context_label="Google Sheets",
+    )
+    if not updated_thread:
+        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Thread not found"})
+
+    return ThreadSchema.model_validate(updated_thread)
+
+
 @router.post("/threads/{thread_id}/messages", response_model=ChatResponseSchema)
 async def send_message(
     thread_id: UUID,
@@ -126,52 +287,98 @@ async def send_message(
         # Update the saved message to include the default prompt
         await ChatService.update_message(db, user_msg.id, default_prompt)
 
-    # Get conversation history (excluding the message we just added)
-    messages = await ChatService.get_thread_messages(db, thread_id)
-    conversation_history = [
-        {"role": m.role, "content": m.content}
-        for m in messages[:-1]  # Exclude the latest user message
-    ]
+    if thread.thread_mode == "data_analysis" and thread.context_source:
+        try:
+            dataframe = SheetsService.load_dataframe(thread.context_source)
+            response_text = await AgentService.answer_question(
+                dataframe=dataframe,
+                user_question=message_text,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "invalid_query", "message": str(exc)},
+            ) from exc
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(
+                status_code=504,
+                detail={
+                    "error": "query_timeout",
+                    "message": "The data query timed out. Please try a shorter or more specific question.",
+                },
+            ) from exc
+        except AgentExecutionError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail={"error": "agent_error", "message": str(exc)},
+            ) from exc
+        except Exception as exc:
+            logger.exception("Data analysis query failed for thread_id=%s", thread_id)
+            raise HTTPException(
+                status_code=502,
+                detail={"error": "context_query_failed", "message": str(exc)},
+            ) from exc
+    else:
+        # Get conversation history (excluding the message we just added)
+        messages = await ChatService.get_thread_messages(db, thread_id)
+        conversation_history = [
+            {"role": m.role, "content": m.content}
+            for m in messages[:-1]  # Exclude the latest user message
+        ]
+        conversation_history = _prepare_history(conversation_history)
 
-    # Extract attachment contents for LLM
-    attachment_contents = []
-    if attachments:
-        for attachment in attachments:
-            content = AttachmentService.get_attachment_content(attachment)
-            attachment_contents.append(content)
-    
-    # ALSO include attachments from previous messages in the conversation
-    # This allows follow-up questions to reference earlier uploaded files
-    if not attachments:  # Only add previous attachments if current message has none
-        # Iterate in REVERSE to find the most recent message with attachments
-        for msg in reversed(messages[:-1]):  # Check all previous messages in reverse order
-            if msg.role == "user":
-                # Get attachments from this previous user message
-                stmt = select(Attachment).where(Attachment.message_id == msg.id)
-                result = await db.execute(stmt)
-                prev_attachments = result.scalars().all()
-                
-                # Add previous attachments to context (from most recent message only)
-                if prev_attachments:
-                    for attachment in prev_attachments:
-                        content = AttachmentService.get_attachment_content(attachment)
-                        attachment_contents.append(content)
-                    break  # Stop after finding the most recent message with attachments
+        # Extract attachment contents for LLM
+        attachment_contents = []
+        if attachments:
+            for attachment in attachments:
+                content = AttachmentService.get_attachment_content(attachment)
+                attachment_contents.append(content)
+        
+        # ALSO include attachments from previous messages in the conversation
+        # This allows follow-up questions to reference earlier uploaded files
+        if not attachments:  # Only add previous attachments if current message has none
+            # Iterate in REVERSE to find the most recent message with attachments
+            for msg in reversed(messages[:-1]):  # Check all previous messages in reverse order
+                if msg.role == "user":
+                    # Get attachments from this previous user message
+                    stmt = select(Attachment).where(Attachment.message_id == msg.id)
+                    result = await db.execute(stmt)
+                    prev_attachments = result.scalars().all()
+                    
+                    # Add previous attachments to context (from most recent message only)
+                    if prev_attachments:
+                        for attachment in prev_attachments:
+                            content = AttachmentService.get_attachment_content(attachment)
+                            attachment_contents.append(content)
+                        break  # Stop after finding the most recent message with attachments
 
-    # Create LLM chain and build messages with attachments
-    chain, system_prompt = create_chat_chain()
-    messages_for_llm = build_messages(
-        system_prompt, 
-        conversation_history, 
-        message_text,
-        attachment_contents if attachment_contents else None
-    )
+        attachment_contents = _prepare_attachment_contents(attachment_contents)
 
-    # Get response from LLM with user tracking
-    response_text = chain.invoke(
-        messages_for_llm,
-        config={"metadata": {"user_email": current_user["email"]}},
-    )
+        # Create LLM chain and build messages with attachments
+        chain, system_prompt = create_chat_chain()
+        messages_for_llm = build_messages(
+            system_prompt, 
+            conversation_history, 
+            message_text,
+            attachment_contents if attachment_contents else None
+        )
+
+        # Get response from LLM with user tracking
+        try:
+            response_text = chain.invoke(
+                messages_for_llm,
+                config={"metadata": {"user_email": current_user["email"]}},
+            )
+            response_text = _normalize_assistant_text(response_text)
+        except Exception as exc:
+            logger.exception("LLM chat invocation failed for thread_id=%s", thread_id)
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "error": "llm_upstream_failed",
+                    "message": "The AI provider request failed. Please retry your message.",
+                },
+            ) from exc
 
     # Save assistant response
     assistant_msg = await ChatService.save_message(
@@ -245,36 +452,81 @@ async def generate_response_for_message(
         # Update the saved message to include the default prompt
         await ChatService.update_message(db, user_msg.id, default_prompt)
     
-    # Get conversation history (all messages before this one)
-    all_messages = await ChatService.get_thread_messages(db, thread_id)
-    user_msg_index = next((i for i, m in enumerate(all_messages) if m.id == message_id), -1)
-    
-    conversation_history = [
-        {"role": m.role, "content": m.content}
-        for m in all_messages[:user_msg_index]  # Only messages before the user message
-    ]
-    
-    # Extract attachment contents for LLM
-    attachment_contents = []
-    if attachments:
-        for attachment in attachments:
-            content = AttachmentService.get_attachment_content(attachment)
-            attachment_contents.append(content)
-    
-    # Create LLM chain and build messages with attachments
-    chain, system_prompt = create_chat_chain()
-    messages_for_llm = build_messages(
-        system_prompt, 
-        conversation_history, 
-        message_text,
-        attachment_contents if attachment_contents else None
-    )
-    
-    # Get response from LLM with user tracking
-    response_text = chain.invoke(
-        messages_for_llm,
-        config={"metadata": {"user_email": current_user["email"]}},
-    )
+    if thread.thread_mode == "data_analysis" and thread.context_source:
+        try:
+            dataframe = SheetsService.load_dataframe(thread.context_source)
+            response_text = await AgentService.answer_question(
+                dataframe=dataframe,
+                user_question=message_text,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "invalid_query", "message": str(exc)},
+            ) from exc
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(
+                status_code=504,
+                detail={
+                    "error": "query_timeout",
+                    "message": "The data query timed out. Please try a shorter or more specific question.",
+                },
+            ) from exc
+        except AgentExecutionError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail={"error": "agent_error", "message": str(exc)},
+            ) from exc
+        except Exception as exc:
+            logger.exception("Data analysis response generation failed for thread_id=%s", thread_id)
+            raise HTTPException(
+                status_code=502,
+                detail={"error": "context_query_failed", "message": str(exc)},
+            ) from exc
+    else:
+        # Get conversation history (all messages before this one)
+        all_messages = await ChatService.get_thread_messages(db, thread_id)
+        user_msg_index = next((i for i, m in enumerate(all_messages) if m.id == message_id), -1)
+        
+        conversation_history = [
+            {"role": m.role, "content": m.content}
+            for m in all_messages[:user_msg_index]  # Only messages before the user message
+        ]
+        conversation_history = _prepare_history(conversation_history)
+        
+        # Extract attachment contents for LLM
+        attachment_contents = []
+        if attachments:
+            for attachment in attachments:
+                content = AttachmentService.get_attachment_content(attachment)
+                attachment_contents.append(content)
+        attachment_contents = _prepare_attachment_contents(attachment_contents)
+        
+        # Create LLM chain and build messages with attachments
+        chain, system_prompt = create_chat_chain()
+        messages_for_llm = build_messages(
+            system_prompt, 
+            conversation_history, 
+            message_text,
+            attachment_contents if attachment_contents else None
+        )
+        
+        # Get response from LLM with user tracking
+        try:
+            response_text = chain.invoke(
+                messages_for_llm,
+                config={"metadata": {"user_email": current_user["email"]}},
+            )
+            response_text = _normalize_assistant_text(response_text)
+        except Exception as exc:
+            logger.exception("LLM respond endpoint invocation failed for thread_id=%s", thread_id)
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "error": "llm_upstream_failed",
+                    "message": "The AI provider request failed. Please retry your message.",
+                },
+            ) from exc
     
     # Save assistant response
     assistant_msg = await ChatService.save_message(

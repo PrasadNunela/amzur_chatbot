@@ -11,6 +11,11 @@ export interface AuthResponse {
     };
     message: string;
 }
+export interface DataQueryResponse {
+    answer: string;
+    row_count: number;
+    column_count: number;
+}
 declare class ApiClient {
     private baseUrl;
     constructor(baseUrl: string);
@@ -31,12 +36,15 @@ declare class ApiClient {
     }>;
     generateImage(threadId: string, prompt: string, size?: string, quality?: string, n?: number): Promise<{
         success: boolean;
-        count?: number;
         images?: any[];
         model?: string;
-        prompt?: string;
         error?: string;
     }>;
+    queryDataframe(fileSource: string, userQuestion: string): Promise<DataQueryResponse>;
+    queryUploadedCsv(file: File, userQuestion: string): Promise<DataQueryResponse>;
+    setThreadContextFromCsv(threadId: string, file: File): Promise<Thread>;
+    setThreadContextFromSheetsUrl(threadId: string, googleSheetsUrl: string): Promise<Thread>;
+    queryThreadContext(threadId: string, userQuestion: string): Promise<DataQueryResponse>;
 }
 export declare const apiClient: ApiClient;
 export {};

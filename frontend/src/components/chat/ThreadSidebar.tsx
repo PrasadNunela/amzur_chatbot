@@ -12,6 +12,8 @@ interface ThreadSidebarProps {
   onSelectThread: (threadId: string) => void
   onCreateThread: () => void
   isCreating?: boolean
+  isCollapsed: boolean
+  onToggleCollapsed: () => void
 }
 
 export function ThreadSidebar({
@@ -19,6 +21,8 @@ export function ThreadSidebar({
   onSelectThread,
   onCreateThread,
   isCreating = false,
+  isCollapsed,
+  onToggleCollapsed,
 }: ThreadSidebarProps) {
   const queryClient = useQueryClient()
   const [threads, setThreads] = useState<Thread[]>([])
@@ -72,27 +76,42 @@ export function ThreadSidebar({
     setEditingThreadId(null)
   }
 
+  const getDisplayTitle = (thread: Thread): string => {
+    if (thread.context_label) {
+      return `${thread.context_label} Chat`
+    }
+    return thread.title || 'Untitled Conversation'
+  }
+
   return (
-    <div className="w-64 bg-gray-50 dark:bg-gray-900 border-r dark:border-gray-700 flex flex-col">
+    <div className={`${isCollapsed ? 'w-16' : 'w-72'} h-full border-r border-slate-700/70 bg-slate-900/90 backdrop-blur flex flex-col transition-all`}>
       {/* Header */}
-      <div className="p-4 border-b dark:border-gray-700">
-        <button
-          onClick={onCreateThread}
-          disabled={isCreating}
-          className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors font-semibold"
-        >
-          {isCreating ? 'Creating...' : '+ New Chat'}
-        </button>
+      <div className="border-b border-slate-700/80 p-4">
+        <div className="space-y-2">
+          <button
+            onClick={onToggleCollapsed}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 text-sm font-semibold text-slate-100"
+          >
+            {isCollapsed ? '»' : '«'}
+          </button>
+          <button
+            onClick={onCreateThread}
+            disabled={isCreating}
+            className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-2 text-white hover:from-cyan-400 hover:to-blue-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50 transition-colors font-semibold"
+          >
+            {isCollapsed ? '+' : isCreating ? 'Creating...' : '+ New Chat'}
+          </button>
+        </div>
       </div>
 
       {/* Thread List */}
       <div className="flex-1 overflow-y-auto">
         {threads.length === 0 ? (
-          <div className="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
-            No conversations yet. Create one to start chatting!
+          <div className="p-4 text-center text-sm text-slate-400">
+            {isCollapsed ? 'No chats' : 'No conversations yet. Create one to start chatting!'}
           </div>
         ) : (
-          <div className="space-y-1 p-2">
+          <div className="space-y-2 p-3">
             {threads.map((thread) => (
               <div key={thread.id} className="group relative">
                 {editingThreadId === thread.id ? (
@@ -101,20 +120,20 @@ export function ThreadSidebar({
                       type="text"
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
-                      className="flex-1 px-2 py-1 text-sm rounded bg-white dark:bg-gray-800 border border-blue-500 text-gray-900 dark:text-white focus:outline-none"
+                      className="flex-1 rounded-lg border border-cyan-500 bg-slate-800 px-2 py-1 text-sm text-slate-100 focus:outline-none"
                       autoFocus
                     />
                     <button
                       onClick={() => handleSaveTitle(thread.id)}
                       disabled={updateTitleMutation.isPending}
-                      className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                      className="rounded px-2 py-1 text-xs bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50"
                     >
                       ✓
                     </button>
                     <button
                       onClick={handleCancelEdit}
                       disabled={updateTitleMutation.isPending}
-                      className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500 disabled:opacity-50"
+                      className="rounded px-2 py-1 text-xs bg-slate-500 text-white hover:bg-slate-600 disabled:opacity-50"
                     >
                       ✕
                     </button>
@@ -122,20 +141,20 @@ export function ThreadSidebar({
                 ) : (
                   <button
                     onClick={() => onSelectThread(thread.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate ${
+                    className={`w-full truncate rounded-xl border px-3 py-2 text-left text-sm transition-all ${
                       activeThreadId === thread.id
-                        ? 'bg-blue-500 text-white'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800'
+                        ? 'border-cyan-400/80 bg-cyan-500/20 text-cyan-100 shadow'
+                        : 'border-slate-700 bg-slate-800/70 text-slate-200 hover:border-slate-500 hover:bg-slate-700/70'
                     }`}
-                    title={thread.title || 'Untitled Conversation'}
+                    title={getDisplayTitle(thread)}
                   >
-                    {thread.title || 'Untitled Conversation'}
+                    {isCollapsed ? '•' : getDisplayTitle(thread)}
                   </button>
                 )}
                 {activeThreadId === thread.id && editingThreadId !== thread.id && (
                   <button
                     onClick={() => handleStartEdit(thread)}
-                    className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-opacity"
+                    className="absolute right-2 top-2 rounded bg-cyan-500 px-2 py-1 text-xs text-white opacity-0 transition-opacity hover:bg-cyan-600 group-hover:opacity-100"
                     title="Rename"
                   >
                     ✏️
