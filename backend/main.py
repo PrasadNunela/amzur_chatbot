@@ -29,7 +29,21 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],  # Frontend URLs
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:3000",
+    ],
+    # Allow LAN-based frontend testing in development for private IPv4 ranges.
+    allow_origin_regex=(
+        r"^http://(localhost|127\.0\.0\.1|"
+        r"10\.\d+\.\d+\.\d+|"
+        r"172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+|"
+        r"192\.168\.\d+\.\d+)(:\d+)?$"
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,12 +55,14 @@ from app.api.chat import router as chat_router
 from app.api.auth import router as auth_router
 from app.api.research_digest import router as research_digest_router
 from app.api.tictactoe import router as tictactoe_router
+from app.api.contract_analysis import router as contract_analysis_router
 from app.routes.query import router as query_router
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
 app.include_router(research_digest_router, prefix="/api")
 app.include_router(tictactoe_router, prefix="/api")
+app.include_router(contract_analysis_router, prefix="/api")
 app.include_router(query_router)
 
 

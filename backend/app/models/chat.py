@@ -25,6 +25,7 @@ class User(Base):
 
     # Relationships
     threads = relationship("Thread", back_populates="user", cascade="all, delete-orphan")
+    contract_reports = relationship("ContractAnalysisReport", back_populates="user", cascade="all, delete-orphan")
 
 
 class Thread(Base):
@@ -80,3 +81,21 @@ class Attachment(Base):
 
     # Relationships
     message = relationship("Message", back_populates="attachments")
+
+
+class ContractAnalysisReport(Base):
+    """Persisted contract analysis report."""
+
+    __tablename__ = "contract_analysis_reports"
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    filename = Column(String(255), nullable=False)
+    uploaded_filename = Column(String(255), nullable=True)
+    uploaded_file_path = Column(String(512), nullable=True)
+    uploaded_file_mime_type = Column(String(100), nullable=True)
+    uploaded_file_size = Column(String(50), nullable=True)
+    report_json = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="contract_reports")

@@ -2,7 +2,7 @@
  * API client for communicating with the backend.
  * All API calls must go through this module — never call fetch or axios directly in components.
  */
-import { Thread } from '../types/chat';
+import { ContractAnalysisReport, SavedContractAnalysis, SavedContractAnalysisListItem, Thread } from '../types/chat';
 export interface AuthResponse {
     user: {
         id: string;
@@ -44,7 +44,25 @@ declare class ApiClient {
     queryUploadedCsv(file: File, userQuestion: string): Promise<DataQueryResponse>;
     setThreadContextFromCsv(threadId: string, file: File): Promise<Thread>;
     setThreadContextFromSheetsUrl(threadId: string, googleSheetsUrl: string): Promise<Thread>;
+    analyzeContract(file: File): Promise<ContractAnalysisReport>;
+    saveContractReport(report: ContractAnalysisReport): Promise<SavedContractAnalysis>;
+    saveContractReportWithFile(report: ContractAnalysisReport, file: File): Promise<SavedContractAnalysis>;
+    listSavedContractReports(): Promise<SavedContractAnalysisListItem[]>;
+    getSavedContractReport(reportId: string): Promise<SavedContractAnalysis>;
+    deleteSavedContractReport(reportId: string): Promise<{
+        message: string;
+    }>;
+    downloadSavedContractReportFile(reportId: string): Promise<Blob>;
     queryThreadContext(threadId: string, userQuestion: string): Promise<DataQueryResponse>;
+    tictactoeMove(params: {
+        board: string[];
+        user_marker: 'X' | 'O';
+    }): Promise<{
+        move: number;
+        trash_talk: string;
+        board: string[];
+        game_status: 'ongoing' | 'ai_win' | 'user_win' | 'draw';
+    }>;
     getResearchDigestStreamUrl(params: {
         topic: string;
         maxIterations?: number;

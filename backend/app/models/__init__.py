@@ -1,5 +1,5 @@
 """Chat models."""
 
-from app.models.chat import Message, Thread
+from app.models.chat import ContractAnalysisReport, Message, Thread, User
 
-__all__ = ["Message", "Thread"]
+__all__ = ["User", "Message", "Thread", "ContractAnalysisReport"]

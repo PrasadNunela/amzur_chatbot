@@ -3,13 +3,18 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
+from sqlalchemy.exc import OperationalError
+import socket
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+from google.auth.exceptions import GoogleAuthError
 
 from app.db.session import get_db
 from app.services.auth import AuthService
 from app.schemas.auth import UserRegister, UserLogin, AuthResponse
 from app.core.jwt import JWTManager
 from app.core.config import settings
+from app.core.logger import logger
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -82,42 +87,35 @@ async def login(credentials: UserLogin, response: Response, db: AsyncSession = D
 async def google_token(req: GoogleTokenRequest, response: Response, db: AsyncSession = Depends(get_db)):
     """Authenticate user with Google ID token."""
     try:
-        print(f"[GOOGLE_TOKEN] Received token request")
-        print(f"[GOOGLE_TOKEN] Token length: {len(req.token) if req.token else 0}")
-        
-        # Verify token with Google
-        async with httpx.AsyncClient() as client:
-            print(f"[GOOGLE_TOKEN] Calling Google tokeninfo endpoint...")
-            google_response = await client.post(
-                "https://oauth2.googleapis.com/tokeninfo",
-                params={"id_token": req.token}
+        if not settings.GOOGLE_CLIENT_ID:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "oauth_not_configured",
+                    "message": "Google OAuth is not configured on the server.",
+                },
             )
-        
-        print(f"[GOOGLE_TOKEN] Google response status: {google_response.status_code}")
-        
-        if google_response.status_code != 200:
-            print(f"[GOOGLE_TOKEN] Invalid token response: {google_response.text}")
-            raise HTTPException(status_code=401, detail="Invalid Google token")
-        
-        token_data = google_response.json()
-        print(f"[GOOGLE_TOKEN] Token data: {token_data}")
-        
+
+        # Verify Google ID token and enforce expected audience (client id).
+        token_data = id_token.verify_oauth2_token(
+            req.token,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+
         google_id = token_data.get("sub")
         email = token_data.get("email")
         full_name = token_data.get("name")
-        
+
         if not all([google_id, email]):
-            print(f"[GOOGLE_TOKEN] Missing google_id or email")
             raise HTTPException(status_code=401, detail="Invalid token data")
-        
+
         # Register or get user
-        print(f"[GOOGLE_TOKEN] Registering/getting user: {email}")
         user = await AuthService.register_google_user(db, google_id, email, full_name or "")
-        print(f"[GOOGLE_TOKEN] User: {user.id}, {user.email}")
-        
+
         # Create JWT token
         jwt_token = JWTManager.create_access_token(str(user.id))
-        
+
         # Set JWT cookie
         response.set_cookie(
             key="access_token",
@@ -127,9 +125,7 @@ async def google_token(req: GoogleTokenRequest, response: Response, db: AsyncSes
             samesite="lax",
             secure=settings.ENVIRONMENT == "production",
         )
-        
-        print(f"[GOOGLE_TOKEN] Authentication successful")
-        
+
         return AuthResponse(
             user={
                 "id": str(user.id),
@@ -137,12 +133,22 @@ async def google_token(req: GoogleTokenRequest, response: Response, db: AsyncSes
                 "full_name": user.full_name,
             },
         )
+    except ValueError as e:
+        # Raised by verify_oauth2_token for invalid token/audience/issuer.
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
+    except GoogleAuthError as e:
+        raise HTTPException(status_code=502, detail=f"Google auth verification failed: {str(e)}")
     except HTTPException:
         raise
+    except (OperationalError, socket.gaierror) as e:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "database_unavailable",
+                "message": "Database is unreachable. Please verify DATABASE_URL in backend/.env.",
+            },
+        ) from e
     except Exception as e:
-        print(f"[GOOGLE_TOKEN] Error: {str(e)}")
-        print(f"[GOOGLE_TOKEN] Exception type: {type(e)}")
-        import traceback
-        print(f"[GOOGLE_TOKEN] Traceback: {traceback.format_exc()}")
+        logger.exception("Google token authentication failed")
         raise HTTPException(status_code=500, detail=str(e))
 

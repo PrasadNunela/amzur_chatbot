@@ -3,7 +3,13 @@
  * All API calls must go through this module — never call fetch or axios directly in components.
  */
 
-import { Thread, ThreadDetail } from '../types/chat'
+import {
+  ContractAnalysisReport,
+  SavedContractAnalysis,
+  SavedContractAnalysisListItem,
+  Thread,
+  ThreadDetail,
+} from '../types/chat'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000/api'
 
@@ -281,6 +287,100 @@ class ApiClient {
     return this.post<Thread>(`/chat/threads/${threadId}/context/sheets`, {
       google_sheets_url: googleSheetsUrl,
     })
+  }
+
+  async analyzeContract(file: File): Promise<ContractAnalysisReport> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const url = `${this.baseUrl}/contract-analysis/analyze`
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const error = (await response.json()) as { detail?: { message?: string } | string }
+        if (typeof error.detail === 'string') {
+          throw new Error(error.detail)
+        }
+        throw new Error(error.detail?.message || `Contract analysis failed: ${response.status}`)
+      }
+      throw new Error(`Contract analysis failed: ${response.status}`)
+    }
+
+    return response.json() as Promise<ContractAnalysisReport>
+  }
+
+  async saveContractReport(report: ContractAnalysisReport): Promise<SavedContractAnalysis> {
+    return this.post<SavedContractAnalysis>('/contract-analysis/reports', { report })
+  }
+
+  async saveContractReportWithFile(
+    report: ContractAnalysisReport,
+    file: File,
+  ): Promise<SavedContractAnalysis> {
+    const formData = new FormData()
+    formData.append('report_json', JSON.stringify(report))
+    formData.append('file', file)
+
+    const url = `${this.baseUrl}/contract-analysis/reports/with-file`
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const error = (await response.json()) as { detail?: { message?: string } | string }
+        if (typeof error.detail === 'string') {
+          throw new Error(error.detail)
+        }
+        throw new Error(error.detail?.message || `Save with file failed: ${response.status}`)
+      }
+      throw new Error(`Save with file failed: ${response.status}`)
+    }
+
+    return response.json() as Promise<SavedContractAnalysis>
+  }
+
+  async listSavedContractReports(): Promise<SavedContractAnalysisListItem[]> {
+    return this.get<SavedContractAnalysisListItem[]>('/contract-analysis/reports')
+  }
+
+  async getSavedContractReport(reportId: string): Promise<SavedContractAnalysis> {
+    return this.get<SavedContractAnalysis>(`/contract-analysis/reports/${reportId}`)
+  }
+
+  async deleteSavedContractReport(reportId: string): Promise<{ message: string }> {
+    return this.delete<{ message: string }>(`/contract-analysis/reports/${reportId}`)
+  }
+
+  async downloadSavedContractReportFile(reportId: string): Promise<Blob> {
+    const url = `${this.baseUrl}/contract-analysis/reports/${reportId}/file`
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const error = (await response.json()) as { detail?: { message?: string } | string }
+        if (typeof error.detail === 'string') {
+          throw new Error(error.detail)
+        }
+        throw new Error(error.detail?.message || `Download failed: ${response.status}`)
+      }
+      throw new Error(`Download failed: ${response.status}`)
+    }
+
+    return response.blob()
   }
 
   async queryThreadContext(threadId: string, userQuestion: string): Promise<DataQueryResponse> {

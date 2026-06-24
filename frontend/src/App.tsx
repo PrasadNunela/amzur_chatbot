@@ -8,6 +8,7 @@ import { ChatThread } from './components/chat/ChatThread'
 import { DataQueryModal } from './components/chat/DataQueryModal'
 import { ResearchDigestPanel } from './components/chat/ResearchDigestPanel'
 import { TicTacToePanel } from './components/chat/TicTacToePanel'
+import { ContractAnalysisPanel } from './components/chat/ContractAnalysisPanel'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import './App.css'
@@ -26,6 +27,7 @@ function ChatApp() {
   const [showDataQueryModal, setShowDataQueryModal] = useState(false)
   const [showResearchDigestPanel, setShowResearchDigestPanel] = useState(false)
   const [showTicTacToe, setShowTicTacToe] = useState(false)
+  const [showContractAnalysisPanel, setShowContractAnalysisPanel] = useState(false)
   
   // Sync page based on auth state
   useEffect(() => {
@@ -165,6 +167,12 @@ function ChatApp() {
               Research Lab
             </button>
             <button
+              onClick={() => setShowContractAnalysisPanel(true)}
+              className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-200 transition hover:bg-indigo-500/20 md:text-sm"
+            >
+              Contract Tool
+            </button>
+            <button
               onClick={() => setShowTicTacToe(true)}
               className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20 md:text-sm"
             >
@@ -218,6 +226,11 @@ function ChatApp() {
       <TicTacToePanel
         isOpen={showTicTacToe}
         onClose={() => setShowTicTacToe(false)}
+      />
+
+      <ContractAnalysisPanel
+        isOpen={showContractAnalysisPanel}
+        onClose={() => setShowContractAnalysisPanel(false)}
       />
     </div>
   )

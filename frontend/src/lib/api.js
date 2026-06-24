@@ -46,8 +46,22 @@ class ApiClient {
                 let message = `API error: ${response.status}`;
                 const contentType = response.headers.get('content-type') || '';
                 if (contentType.includes('application/json')) {
-                    const error = (await response.json());
-                    message = error.message || message;
+                    const body = await response.json();
+                    if (body.detail) {
+                        // FastAPI validation errors use 'detail'
+                        if (Array.isArray(body.detail)) {
+                            message = body.detail.map((e) => e.msg || JSON.stringify(e)).join('; ');
+                        }
+                        else if (typeof body.detail === 'object' && body.detail.message) {
+                            message = body.detail.message;
+                        }
+                        else {
+                            message = String(body.detail);
+                        }
+                    }
+                    else if (body.message) {
+                        message = body.message;
+                    }
                 }
                 else {
                     const text = await response.text();
@@ -205,6 +219,82 @@ class ApiClient {
             google_sheets_url: googleSheetsUrl,
         });
     }
+    async analyzeContract(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const url = `${this.baseUrl}/contract-analysis/analyze`;
+        const response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+        });
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const error = (await response.json());
+                if (typeof error.detail === 'string') {
+                    throw new Error(error.detail);
+                }
+                throw new Error(error.detail?.message || `Contract analysis failed: ${response.status}`);
+            }
+            throw new Error(`Contract analysis failed: ${response.status}`);
+        }
+        return response.json();
+    }
+    async saveContractReport(report) {
+        return this.post('/contract-analysis/reports', { report });
+    }
+    async saveContractReportWithFile(report, file) {
+        const formData = new FormData();
+        formData.append('report_json', JSON.stringify(report));
+        formData.append('file', file);
+        const url = `${this.baseUrl}/contract-analysis/reports/with-file`;
+        const response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+        });
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const error = (await response.json());
+                if (typeof error.detail === 'string') {
+                    throw new Error(error.detail);
+                }
+                throw new Error(error.detail?.message || `Save with file failed: ${response.status}`);
+            }
+            throw new Error(`Save with file failed: ${response.status}`);
+        }
+        return response.json();
+    }
+    async listSavedContractReports() {
+        return this.get('/contract-analysis/reports');
+    }
+    async getSavedContractReport(reportId) {
+        return this.get(`/contract-analysis/reports/${reportId}`);
+    }
+    async deleteSavedContractReport(reportId) {
+        return this.delete(`/contract-analysis/reports/${reportId}`);
+    }
+    async downloadSavedContractReportFile(reportId) {
+        const url = `${this.baseUrl}/contract-analysis/reports/${reportId}/file`;
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+        });
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const error = (await response.json());
+                if (typeof error.detail === 'string') {
+                    throw new Error(error.detail);
+                }
+                throw new Error(error.detail?.message || `Download failed: ${response.status}`);
+            }
+            throw new Error(`Download failed: ${response.status}`);
+        }
+        return response.blob();
+    }
     async queryThreadContext(threadId, userQuestion) {
         const thread = await this.get(`/chat/threads/${threadId}`);
         if (!thread.context_locked || !thread.context_type || !thread.context_source) {
@@ -214,6 +304,9 @@ class ApiClient {
             return this.queryDataframe(thread.context_source, userQuestion);
         }
         return this.queryDataframe(thread.context_source, userQuestion);
+    }
+    async tictactoeMove(params) {
+        return this.post('/tictactoe/move', params);
     }
     getResearchDigestStreamUrl(params) {
         const rootBaseUrl = this.baseUrl.endsWith('/api')

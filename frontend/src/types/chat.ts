@@ -47,3 +47,59 @@ export interface ChatResponseSchema {
   assistant_message: Message
   thread_id: string
 }
+
+export interface ContractClause {
+  category: string
+  clause_title: string
+  description: string
+  source_excerpt: string
+}
+
+export interface ContractRisk {
+  title: string
+  severity: 'low' | 'medium' | 'high' | string
+  description: string
+  clause_reference: string
+  recommendation: string
+}
+
+export interface ContractSummary {
+  executive_summary: string
+  key_terms: string[]
+}
+
+export interface ContractDataExtraction {
+  party_names: string[]
+  effective_date: string | null
+  expiration_date: string | null
+  governing_law: string | null
+  contract_value: string | null
+  renewal_terms: string | null
+  payment_terms: string | null
+  notice_period: string | null
+}
+
+export interface ContractAnalysisReport {
+  filename: string
+  summary: ContractSummary
+  clauses: ContractClause[]
+  risks: ContractRisk[]
+  extracted_data: ContractDataExtraction
+  analyzed_at: string
+}
+
+export interface SavedContractAnalysisListItem {
+  id: string
+  filename: string
+  created_at: string
+  analyzed_at: string
+  uploaded_filename: string | null
+}
+
+export interface SavedContractAnalysis {
+  id: string
+  filename: string
+  created_at: string
+  uploaded_filename: string | null
+  report: ContractAnalysisReport
+}
